@@ -1,0 +1,50 @@
+{
+  "appId": "com.heartlink.app",
+  "appName": "HeartLink",
+  "webDir": "build",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#ff6b9d",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP"
+    },
+    "PushNotifications": {
+      "presentationOptions": []
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#ff6b9d",
+      "sound": "beep.wav"
+    },
+    "AdMob": {
+      "appId": "ca-app-pub-3735972538807236~9004238866",
+      "requestTrackingAuthorization": true,
+      "initializeForTesting": false
+    },
+    "Keyboard": {
+      "resizeOnFullScreen": true
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": true,
+      "updateUrl": "https://www.heartlink.co.in/api/ota/check",
+      "statsUrl": "",
+      "appReadyTimeout": 10000,
+      "autoDeleteFailed": true,
+      "autoDeletePrevious": true,
+      "resetWhenUpdate": true
+    }
+  },
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true,
+    "allowNavigation": [
+      "*.heartlink.co.in",
+      "*.emergentagent.com",
+      "*.emergent.host"
+    ]
+  }
+}

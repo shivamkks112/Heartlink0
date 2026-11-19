@@ -1,0 +1,335 @@
+"""
+Girls Safety Module for HeartLink
+- Creepy Message Detection (AI-based)
+- Night Mode Safety (11pm-6am IST block for new matches)
+- Safe Word Emergency System
+"""
+import os
+import uuid
+import logging
+import asyncio
+from datetime import datetime, timezone, timedelta
+
+logger = logging.getLogger("safety")
+
+EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
+
+# ── SAFE WORD CONFIG ──
+DEFAULT_SAFE_WORDS = ["heartlink sos", "hl sos", "i feel unsafe"]
+
+# ── NIGHT MODE CONFIG ──
+NIGHT_START_HOUR = 1   # 1 AM IST
+NIGHT_END_HOUR = 6     # 6 AM IST
+NEW_MATCH_HOURS = 48   # Only block for matches < 48 hours old
+
+
+async def check_creepy_message(content: str) -> dict:
+    """Detect ONLY vulgar, sexual, or inappropriate messages.
+    Returns: {"is_creepy": bool, "severity": "low"|"medium"|"high", "reason": str}
+    """
+    if not EMERGENT_LLM_KEY or len(content.strip()) < 3:
+        return {"is_creepy": False, "severity": "none", "reason": ""}
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"safety_check_{hash(content) % 10000}",
+            system_message="""You are a content safety classifier for an Indian dating app.
+ONLY flag messages that are vulgar, sexually inappropriate, or abusive.
+
+FLAG as UNSAFE:
+- Sexual/vulgar words, body part references in sexual context
+- Sexually explicit requests ("send nudes", "come to my room", sex-related)
+- Abusive slurs, gaaliyan (Hindi/English abuses)
+- Sexually inappropriate compliments (about body parts explicitly)
+
+DO NOT FLAG (these are SAFE):
+- Normal flirting ("you're beautiful", "I like you", "date pe chalein?")
+- Compliments ("cute ho", "pretty smile", "handsome")
+- Asking for phone/insta/meeting — this is NOT your job, handled elsewhere
+- Jokes, memes, casual talk
+- Expressing feelings ("I love you", "I miss you", "dil mein ho tum")
+- Mild teasing ("pagal hai kya", "bore kar rahi ho")
+
+Be STRICT about what you flag. Only genuinely vulgar/sexual/abusive content.
+
+Respond ONLY in JSON: {"unsafe": true/false, "severity": "low/medium/high", "reason": "brief reason in Hindi/English"}
+If safe: {"unsafe": false, "severity": "none", "reason": ""}"""
+        )
+        chat.with_model("gemini", "gemini-2.5-flash")
+
+        response = await chat.send_message(UserMessage(text=f"Classify: \"{content}\""))
+        resp_text = str(response).strip()
+
+        # Parse JSON response
+        import json
+        # Extract JSON from response
+        start = resp_text.find('{')
+        end = resp_text.rfind('}') + 1
+        if start >= 0 and end > start:
+            result = json.loads(resp_text[start:end])
+            return {
+                "is_creepy": result.get("unsafe", False),
+                "severity": result.get("severity", "none"),
+                "reason": result.get("reason", "")
+            }
+
+    except Exception as e:
+        logger.error(f"Creepy message check failed: {e}")
+
+    return {"is_creepy": False, "severity": "none", "reason": ""}
+
+
+async def handle_creepy_detection(db, sender_id: str, receiver_id: str, match_id: str, content: str, ws_manager=None):
+    """Full flow: detect → warn sender → increment warnings → auto-ban at 3."""
+    result = await check_creepy_message(content)
+
+    if not result["is_creepy"]:
+        return False  # Message is safe
+
+    severity = result["severity"]
+    reason = result["reason"]
+
+    # Increment warning count
+    await db.users.update_one(
+        {"id": sender_id},
+        {"$inc": {"safety_warnings": 1}}
+    )
+
+    sender = await db.users.find_one({"id": sender_id}, {"_id": 0, "safety_warnings": 1, "name": 1, "email": 1, "age": 1, "location": 1})
+    receiver = await db.users.find_one({"id": receiver_id}, {"_id": 0, "name": 1, "email": 1, "gender": 1})
+    warning_count = sender.get("safety_warnings", 1)
+    sender_name = sender.get("name", "Unknown")
+    receiver_name = receiver.get("name", "Unknown") if receiver else "Unknown"
+
+    # Send warning to sender via WS — 3 LEVEL SYSTEM
+    if warning_count == 1:
+        warn_msg = "Warning 1/3: Aapka message inappropriate flag hua hai. Please respectful rahein. Agli baar strict action hoga."
+    elif warning_count == 2:
+        warn_msg = "Warning 2/3: Aapka ek aur message vulgar/inappropriate flag hua. EK AUR WARNING aur aapka account PERMANENTLY BAN ho jayega!"
+    else:
+        warn_msg = "Warning 3/3: Aapka account inappropriate behavior ke karan PERMANENTLY SUSPENDED kar diya gaya hai."
+
+    # Save warning as a system message in chat — visible on sender's chat screen
+    warning_msg_doc = {
+        "id": str(uuid.uuid4()),
+        "match_id": match_id,
+        "sender_id": "system",
+        "receiver_id": sender_id,
+        "content": warn_msg,
+        "read": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "message_type": "system_warning",
+        "warning_level": warning_count,
+        "is_deleted_for_sender": False,
+        "is_deleted_for_receiver": False,
+        "is_deleted_for_all": False,
+    }
+    await db.messages.insert_one(warning_msg_doc)
+
+    if ws_manager:
+        clean_warn = {k: v for k, v in warning_msg_doc.items() if k != "_id"}
+        await ws_manager.send_message(sender_id, {
+            "type": "message",
+            "message": clean_warn,
+        })
+        # Also send system_warning event for toast
+        await ws_manager.send_message(sender_id, {
+            "type": "system_warning",
+            "message": warn_msg,
+            "warning_level": warning_count,
+        })
+
+    # Notify receiver (girl) — option to report
+    if ws_manager:
+        await ws_manager.send_message(receiver_id, {
+            "type": "safety_alert",
+            "message": "A message was flagged as inappropriate and blocked.",
+            "sender_id": sender_id,
+            "match_id": match_id,
+            "action": "report_option"
+        })
+
+    # Log for admin — include full names and message content
+    await db.safety_reports.insert_one({
+        "type": "ai_detection",
+        "sender_id": sender_id,
+        "sender_name": sender_name,
+        "sender_email": sender.get("email", ""),
+        "sender_age": sender.get("age", ""),
+        "sender_location": sender.get("location", ""),
+        "receiver_id": receiver_id,
+        "receiver_name": receiver_name,
+        "match_id": match_id,
+        "content": content,
+        "severity": severity,
+        "reason": reason,
+        "warning_number": warning_count,
+        "auto_action": "banned" if warning_count >= 3 else "warned",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    # Auto-ban at 3 warnings
+    if warning_count >= 3:
+        await db.users.update_one(
+            {"id": sender_id},
+            {"$set": {"is_blocked": True, "block_reason": "Auto-banned: 3 inappropriate message warnings", "blocked_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        logger.warning(f"AUTO-BANNED user {sender_id} ({sender_name}) after {warning_count} warnings")
+        
+        # Notify admins with FULL DETAILS
+        try:
+            admin_users = await db.users.find({"is_admin": True}, {"_id": 0, "id": 1}).to_list(None)
+            if admin_users:
+                import fcm_service
+                # Get all 3 warning messages for context
+                reports = await db.safety_reports.find(
+                    {"sender_id": sender_id, "type": "ai_detection"},
+                    {"_id": 0, "content": 1, "warning_number": 1, "receiver_name": 1}
+                ).sort("created_at", -1).limit(3).to_list(None)
+                
+                msg_preview = content[:80] if content else ""
+                body = f"{sender_name} ({sender.get('email','')}) banned!\nSent to: {receiver_name}\nMsg: \"{msg_preview}\"\nTotal warnings: {warning_count}"
+                
+                await fcm_service.send_to_users(
+                    db, [a["id"] for a in admin_users],
+                    title=f"AUTO-BAN: {sender_name} ({warning_count} warnings)",
+                    body=body,
+                    data={"type": "admin_alert", "alert_type": "auto_ban", "route": "/admin"}
+                )
+        except Exception as e:
+            logger.error(f"Admin auto-ban FCM failed: {e}")
+
+    logger.info(f"Creepy message detected from {sender_name} ({sender_id}): severity={severity}, warning #{warning_count}")
+    return True  # Message was blocked
+
+
+def is_night_mode_ist() -> bool:
+    """Check if current IST time is inside the night window (1am-6am)."""
+    ist = timezone(timedelta(hours=5, minutes=30))
+    h = datetime.now(ist).hour
+    if NIGHT_START_HOUR < NIGHT_END_HOUR:
+        return NIGHT_START_HOUR <= h < NIGHT_END_HOUR
+    return h >= NIGHT_START_HOUR or h < NIGHT_END_HOUR
+
+
+async def check_night_mode_block(db, sender_id: str, receiver_id: str, match_id: str) -> tuple:
+    """Returns (blocked: bool, reason: str). Blocks new match boys messaging girls at night."""
+    if not is_night_mode_ist():
+        return False, ""
+
+    # Check if receiver is female and has night mode enabled
+    receiver = await db.users.find_one(
+        {"id": receiver_id},
+        {"_id": 0, "gender": 1, "night_safety_enabled": 1}
+    )
+    if not receiver or receiver.get("gender", "").lower() != "female":
+        return False, ""
+    if not receiver.get("night_safety_enabled", True):  # Default ON for girls
+        return False, ""
+
+    # Check if sender is male
+    sender = await db.users.find_one({"id": sender_id}, {"_id": 0, "gender": 1})
+    if not sender or sender.get("gender", "").lower() != "male":
+        return False, ""
+
+    # Check match age — only block for new matches (< 48 hours)
+    match_doc = await db.matches.find_one({"id": match_id}, {"_id": 0, "created_at": 1})
+    if match_doc and match_doc.get("created_at"):
+        try:
+            match_created = datetime.fromisoformat(match_doc["created_at"].replace("Z", "+00:00"))
+            hours_since = (datetime.now(timezone.utc) - match_created).total_seconds() / 3600
+            if hours_since >= NEW_MATCH_HOURS:
+                return False, ""  # Old match, allow
+        except Exception:
+            pass
+
+    return True, ""
+
+
+async def check_safe_word(db, sender_id: str, receiver_id: str, match_id: str, content: str, ws_manager=None) -> bool:
+    """Check if a girl typed the safe word. Returns True if triggered."""
+    content_lower = content.strip().lower()
+
+    # Get admin-configured safe words or use defaults
+    config = await db.app_settings.find_one({"type": "safety_config"}, {"_id": 0})
+    safe_words = DEFAULT_SAFE_WORDS
+    if config and config.get("safe_words"):
+        safe_words = config["safe_words"]
+
+    triggered = any(sw in content_lower for sw in safe_words)
+    if not triggered:
+        return False
+
+    # Verify sender is female
+    sender = await db.users.find_one({"id": sender_id}, {"_id": 0, "gender": 1, "name": 1})
+    if not sender or sender.get("gender", "").lower() != "female":
+        return False
+
+    # EMERGENCY: Block the other user from girl's perspective
+    await db.users.update_one(
+        {"id": sender_id},
+        {"$addToSet": {"blocked_users": receiver_id}}
+    )
+
+    # Auto-report with FULL details
+    reported_user_doc = await db.users.find_one({"id": receiver_id}, {"_id": 0, "name": 1, "email": 1, "age": 1, "location": 1})
+    await db.safety_reports.insert_one({
+        "type": "safe_word_triggered",
+        "triggered_by": sender_id,
+        "triggered_by_name": sender.get("name", "Unknown"),
+        "reported_user": receiver_id,
+        "reported_user_name": reported_user_doc.get("name", "Unknown") if reported_user_doc else "Unknown",
+        "reported_user_email": reported_user_doc.get("email", "") if reported_user_doc else "",
+        "match_id": match_id,
+        "safe_word_used": content_lower,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "status": "pending_review"
+    })
+
+    # Admin alert with names
+    await db.admin_alerts.insert_one({
+        "type": "safe_word_emergency",
+        "girl_id": sender_id,
+        "girl_name": sender.get("name", "Unknown"),
+        "reported_user_id": receiver_id,
+        "reported_user_name": reported_user_doc.get("name", "Unknown") if reported_user_doc else "Unknown",
+        "reported_user_email": reported_user_doc.get("email", "") if reported_user_doc else "",
+        "safe_word_used": content_lower,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "read": False
+    })
+
+    # Notify admin via FCM push — FULL DETAILS
+    try:
+        reported_user = await db.users.find_one({"id": receiver_id}, {"_id": 0, "name": 1, "email": 1, "age": 1, "location": 1})
+        reported_name = reported_user.get("name", "Unknown") if reported_user else "Unknown"
+        reported_email = reported_user.get("email", "") if reported_user else ""
+        
+        admin_users = await db.users.find(
+            {"is_admin": True},
+            {"_id": 0, "id": 1}
+        ).to_list(None)
+        admin_ids = [a["id"] for a in admin_users]
+        if admin_ids:
+            import fcm_service
+            body = f"Girl: {sender.get('name', '?')}\nAgainst: {reported_name} ({reported_email})\nSafe word: \"{content_lower[:50]}\""
+            await fcm_service.send_to_users(
+                db, admin_ids,
+                title=f"SOS: {sender.get('name', 'A girl')} feels unsafe!",
+                body=body,
+                data={"type": "admin_alert", "alert_type": "safe_word_emergency", "route": "/admin"}
+            )
+    except Exception as e:
+        logger.error(f"Admin FCM alert failed: {e}")
+
+    # Send confirmation to girl via WS
+    if ws_manager:
+        await ws_manager.send_message(sender_id, {
+            "type": "system_warning",
+            "message": "User has been blocked and reported. You are safe. Our team will review this immediately."
+        })
+
+    logger.warning(f"SAFE WORD triggered by {sender_id} against {receiver_id}")
+    return True

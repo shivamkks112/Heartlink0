@@ -1,34 +1,220 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* Font loaded via index.html preload for better performance */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+html, body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 100vw;
+  -webkit-overflow-scrolling: touch;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #ffeef8 0%, #fff5f0 100%);
+  min-height: 100vh;
 }
 
-.App-link {
-    color: #61dafb;
+#root {
+  max-width: 100vw;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+/* Hide scrollbar but keep scroll functionality */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.gradient-bg {
+  background: linear-gradient(135deg, #ff6b9d 0%, #ff8a5b 100%);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #ff6b9d 0%, #ff8a5b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(255, 107, 157, 0.2);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #ff6b9d 0%, #ff8a5b 100%);
+  border: none;
+  color: white;
+  padding: 12px 32px;
+  border-radius: 24px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-primary:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 16px rgba(255, 107, 157, 0.3);
+}
+
+.nav-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+  padding: 12px 0;
+  z-index: 1000;
+}
+
+.page-with-bottom-nav {
+  padding-bottom: calc(var(--nav-total, 86px) + 16px);
+}
+
+.trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (min-width: 768px) {
+  .container {
+    max-width: 768px;
+    margin: 0 auto;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    max-width: 1024px;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+img {
+  content-visibility: auto;
+}
+
+.lazy-load {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.lazy-load.loaded {
+  opacity: 1;
+}
+
+/* Safe Area & Bottom Navigation Responsive Fixes */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ─── Page Transitions — Native slide feel ─── */
+@keyframes pageSlideIn {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes pageSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: pageSlideIn 0.2s ease-out;
+}
+.page-enter-up {
+  animation: pageSlideUp 0.25s ease-out;
+}
+
+/* ─── Bounce-in for cards/nudges ─── */
+@keyframes bounceIn {
+  0% { opacity: 0; transform: scale(0.95) translateY(8px); }
+  60% { transform: scale(1.01) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-bounce-in {
+  animation: bounceIn 0.35s ease-out;
+}
+
+/* ─── Smooth image reveal ─── */
+@keyframes imageReveal {
+  from { filter: blur(12px); opacity: 0.7; transform: scale(1.05); }
+  to { filter: blur(0); opacity: 1; transform: scale(1); }
+}
+.img-reveal {
+  animation: imageReveal 0.5s ease-out forwards;
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* ─── Discover card area: fills viewport minus navbar + gap ─── */
+.discover-card-area {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Page bottom padding for content pages with navbar */
+.page-container {
+  padding-bottom: calc(var(--nav-total, 86px) + 16px);
+}
+
+/* CSS-only safety net: if JS hasn't loaded yet, ensure bottom nav
+   clears the system bar on Android via env() */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  [data-testid="bottom-nav"] {
+    padding-bottom: max(var(--safe-bottom, 12px), env(safe-area-inset-bottom, 0px), 8px) !important;
+  }
 }

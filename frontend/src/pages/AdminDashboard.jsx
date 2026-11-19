@@ -1,0 +1,2305 @@
+import { useState, useEffect, useCallback } from 'react';
+import adminApi from '@/utils/adminApi';
+import { 
+  CheckCircle, XCircle, User, Search, Trash2, 
+  Ban, Camera, Users, AlertTriangle, ChevronLeft, 
+  ChevronRight, RefreshCw, UserCheck, Bell,
+  TrendingUp, UserPlus, Clock, Calendar, Filter,
+  Eye, MessageCircle, Heart, Shield, Crown,
+  Activity, BarChart3, PieChart, ClipboardCheck, Settings,
+  Bot, Power, RotateCcw, KeyRound, Download, Send, Flame,
+  DollarSign, BarChart2, Target, Tv, Zap, Sparkles, Gift
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
+import Navbar from '@/components/Navbar';
+import TopBar from '@/components/TopBar';
+import NotificationManager from '@/components/admin/NotificationManager';
+import ProfileApprovals from '@/components/admin/ProfileApprovals';
+import GrowthAcquisition from '@/components/admin/GrowthAcquisition';
+import GirlsReferralDashboard from '@/components/admin/GirlsReferralDashboard';
+import SignupFunnelDashboard from '@/components/admin/SignupFunnelDashboard';
+import WelcomeSettings from '@/components/admin/WelcomeSettings';
+import AdAnalyticsPanel from '@/components/admin/AdAnalyticsPanel';
+import AppUpdateSettings from '@/components/admin/AppUpdateSettings';
+import SmartNotificationConfig from '@/components/admin/SmartNotificationConfig';
+import SafetyDashboard from '@/components/admin/SafetyDashboard';
+import AiReplyTiming from '@/components/admin/AiReplyTiming';
+import AiPersonaSchedule from '@/components/admin/AiPersonaSchedule';
+import AiStyleEditor from '@/components/admin/AiStyleEditor';
+import AiPhotoRegen from '@/components/admin/AiPhotoRegen';
+import AiPhotoReview from '@/components/admin/AiPhotoReview';
+
+import { BACKEND_URL } from '@/config/api';
+
+// Update Push Notification Card
+const UpdatePushCard = () => {
+  const [sending, setSending] = useState(false);
+  const [title, setTitle] = useState('HeartLink Update Available! \u2728');
+  const [message, setMessage] = useState('Please update the app for a smooth and bugless experience! Naye features aur improvements aapka wait kar rahe hain.');
+
+  const sendUpdatePush = async () => {
+    setSending(true);
+    try {
+      await adminApi.post('/admin/push-update-notification', { title, message });
+      toast.success('Update notification sent to all users!');
+    } catch (e) {
+      toast.error('Failed: ' + (e.response?.data?.detail || e.message));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl p-5" data-testid="update-push-card">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center">
+          <Download className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h3 className="font-bold text-gray-900 dark:text-gray-100">Push App Update Notification</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Send update alert to ALL users via push notification</p>
+        </div>
+      </div>
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Title</label>
+          <input
+            type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-green-300"
+            data-testid="update-push-title"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Message</label>
+          <textarea
+            value={message} onChange={(e) => setMessage(e.target.value)} rows={2}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none resize-none focus:ring-2 focus:ring-green-300"
+            data-testid="update-push-message"
+          />
+        </div>
+        <Button
+          onClick={sendUpdatePush} disabled={sending || !title.trim()}
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-5 rounded-xl"
+          data-testid="send-update-push-btn"
+        >
+          <Send className="w-4 h-4 mr-2" />
+          {sending ? 'Sending to all users...' : 'Send Update Notification to All Users'}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// Stats Card Component
+const StatCard = ({ icon: Icon, label, value, subValue, color, bgColor }) => (
+  <div className={`${bgColor} rounded-xl p-4 shadow-sm`}>
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm text-gray-600">{label}</p>
+        <p className="text-2xl font-bold text-gray-900">{value}</p>
+        {subValue && <p className="text-xs text-gray-500 mt-1">{subValue}</p>}
+      </div>
+      <div className={`p-3 ${color} rounded-full`}>
+        <Icon className="w-6 h-6 text-white" />
+      </div>
+    </div>
+  </div>
+);
+
+// UserCard Component
+const UserCard = ({ u, onBlock, onUnblock, onDelete, onView, onResetPassword, onToggleAutoChat, onToggleCustomAI }) => {
+  if (!u) return null;
+  
+  const lastActive = u.last_active ? new Date(u.last_active) : null;
+  const isOnline = lastActive && (Date.now() - lastActive.getTime()) < 5 * 60 * 1000; // 5 min
+  const daysSinceActive = lastActive ? Math.floor((Date.now() - lastActive.getTime()) / (1000 * 60 * 60 * 24)) : null;
+  
+  return (
+    <div className="bg-white rounded-xl shadow-md p-4 flex items-start gap-4">
+      <div className="relative">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-400 to-orange-400 flex items-center justify-center overflow-hidden flex-shrink-0">
+          {u.profile_picture ? (
+            <img src={u.profile_picture} alt={u.name || 'User'} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+          ) : (
+            <User className="w-8 h-8 text-white" />
+          )}
+        </div>
+        {isOnline && (
+          <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+        )}
+      </div>
+      
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-bold text-gray-900">{u.name || 'Unknown'}</h3>
+          {u.verified && <CheckCircle className="w-4 h-4 text-blue-500" />}
+          {u.is_premium && <Crown className="w-4 h-4 text-amber-500" />}
+          {u.is_admin && <Shield className="w-4 h-4 text-purple-500" />}
+        </div>
+        
+        <p className="text-sm text-gray-500 truncate">{u.email || u.phone || 'No contact'}</p>
+        
+        <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+          <span className={`px-2 py-0.5 rounded-full ${
+            u.gender?.toLowerCase() === 'male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
+          }`}>
+            {u.gender || 'Unknown'}
+          </span>
+          <span>{u.age || '?'} yrs</span>
+          <span>• {u.location || 'Location not set'}</span>
+        </div>
+        
+        <div className="flex items-center gap-3 mt-2 text-xs">
+          {lastActive && (
+            <span className={`flex items-center gap-1 ${isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+              <Clock className="w-3 h-3" />
+              {isOnline ? 'Online' : daysSinceActive === 0 ? 'Today' : `${daysSinceActive}d ago`}
+            </span>
+          )}
+          <span className={`px-2 py-0.5 rounded-full ${
+            u.trust_badge_level === 'high' ? 'bg-green-100 text-green-700' :
+            u.trust_badge_level === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+            'bg-gray-100 text-gray-600'
+          }`}>
+            {u.trust_badge_level || 'low'} trust
+          </span>
+        </div>
+
+        {/* Status badges */}
+        <div className="flex flex-wrap gap-1 mt-2">
+          {u.is_shadow_banned && (
+            <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full">Shadow Banned</span>
+          )}
+          {u.is_permanently_banned && (
+            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">Banned</span>
+          )}
+          {u.profile_complete === false && (
+            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">Incomplete</span>
+          )}
+        </div>
+      </div>
+      
+      <div className="flex flex-col gap-2">
+        <Button size="sm" variant="outline" onClick={() => onView(u)}>
+          <Eye className="w-4 h-4" />
+        </Button>
+        {!u.is_ai_profile && (
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className={u.auto_chat_enabled ? 'text-emerald-600 border-emerald-600 bg-emerald-50' : 'text-gray-400 border-gray-300'}
+            onClick={() => onToggleAutoChat(u.id, u.name, !u.auto_chat_enabled)}
+            title={u.auto_chat_enabled ? 'Auto-chat ON' : 'Auto-chat OFF'}
+            data-testid={`stealth-toggle-${u.id}`}
+          >
+            <Zap className="w-4 h-4" />
+          </Button>
+        )}
+        {!u.is_ai_profile && (
+          <Button
+            size="sm"
+            variant="outline"
+            className={u.custom_ai_persona ? 'text-purple-600 border-purple-600 bg-purple-50' : 'text-gray-400 border-gray-300'}
+            onClick={() => onToggleCustomAI(u.id, u.name, !u.custom_ai_persona)}
+            title={u.custom_ai_persona ? 'Custom AI Persona ON' : 'Custom AI Persona OFF'}
+            data-testid={`custom-ai-toggle-${u.id}`}
+          >
+            <Sparkles className="w-4 h-4" />
+          </Button>
+        )}
+        {(u.is_shadow_banned || u.is_permanently_banned) ? (
+          <Button size="sm" variant="outline" className="text-green-600 border-green-600" onClick={() => onUnblock(u.id, u.name)}>
+            <UserCheck className="w-4 h-4" />
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" className="text-yellow-600 border-yellow-600" onClick={() => onBlock(u)}>
+            <Ban className="w-4 h-4" />
+          </Button>
+        )}
+        <Button size="sm" variant="outline" className="text-blue-600 border-blue-600" onClick={() => onResetPassword(u)} data-testid={`reset-password-btn-${u.id}`}>
+            <KeyRound className="w-4 h-4" />
+          </Button>
+        <Button size="sm" variant="outline" className="text-red-600 border-red-600" onClick={() => onDelete(u)}>
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// VerificationCard Component
+const VerificationCard = ({ v, onVerify }) => {
+  if (!v) return null;
+  
+  return (
+    <div className="bg-white rounded-xl shadow-md p-4">
+      <div className="flex items-start gap-4">
+        <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
+          {v.profile_picture ? (
+            <img src={v.profile_picture} alt="Profile" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <User className="w-10 h-10 text-gray-400" />
+            </div>
+          )}
+        </div>
+        <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 border-2 border-blue-500">
+          {v.selfie_verification_url ? (
+            <img src={v.selfie_verification_url} alt="Selfie" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Camera className="w-10 h-10 text-gray-400" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1">
+          <h3 className="font-bold text-gray-900">{v.name || 'Unknown'}</h3>
+          <p className="text-sm text-gray-500">{v.email || v.phone || 'No contact'}</p>
+          <p className="text-xs text-gray-400 mt-1">
+            Submitted: {v.selfie_submitted_at ? new Date(v.selfie_submitted_at).toLocaleDateString() : 'Unknown'}
+          </p>
+        </div>
+      </div>
+      
+      <div className="flex gap-2 mt-4">
+        <Button className="flex-1 bg-green-500 hover:bg-green-600" onClick={() => onVerify(v.id, 'approve')}>
+          <CheckCircle className="w-4 h-4 mr-2" /> Approve
+        </Button>
+        <Button className="flex-1 bg-red-500 hover:bg-red-600" onClick={() => onVerify(v.id, 'reject', 'Photo does not match')}>
+          <XCircle className="w-4 h-4 mr-2" /> Reject
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// Premium Analytics Panel
+const PremiumAnalyticsPanel = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await adminApi.get('/admin/premium-analytics');
+        setData(res.data);
+      } catch (e) {
+        console.error('Premium analytics failed:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetch();
+  }, []);
+
+  if (loading) return <div className="animate-pulse space-y-3"><div className="h-20 bg-gray-200 rounded-xl" /><div className="h-32 bg-gray-100 rounded-xl" /></div>;
+  if (!data) return <p className="text-gray-500 text-center py-8">Failed to load premium analytics</p>;
+
+  const s = data.summary || {};
+  return (
+    <div className="space-y-4" data-testid="premium-analytics-panel">
+      <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2"><Crown className="w-5 h-5 text-amber-500" /> Premium Analytics</h2>
+      
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { val: s.total_premium, label: 'Total Premium', color: 'text-amber-600', bg: 'bg-amber-50' },
+          { val: s.google_play, label: 'Google Play', color: 'text-blue-600', bg: 'bg-blue-50' },
+          { val: s.trialing, label: 'On Trial', color: 'text-green-600', bg: 'bg-green-50' },
+          { val: s.active_paid, label: 'Active Paid', color: 'text-purple-600', bg: 'bg-purple-50' },
+          { val: s.cancelled, label: 'Cancelled', color: 'text-red-600', bg: 'bg-red-50' },
+          { val: s.girls_free_premium, label: 'Girls Free', color: 'text-pink-600', bg: 'bg-pink-50' },
+          { val: `${s.conversion_rate}%`, label: 'Conversion', color: 'text-indigo-600', bg: 'bg-indigo-50' },
+          { val: `₹${s.estimated_revenue_inr || 0}`, label: 'Est. Revenue', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+        ].map((c, i) => (
+          <div key={i} className={`${c.bg} rounded-xl p-3 border border-gray-100`}>
+            <p className={`text-2xl font-bold ${c.color}`}>{c.val}</p>
+            <p className="text-[10px] text-gray-500">{c.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {data.recent_orders?.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Recent Orders</h3>
+          <div className="bg-white rounded-xl border divide-y max-h-60 overflow-y-auto">
+            {data.recent_orders.map((o, i) => (
+              <div key={i} className="px-4 py-2.5 flex items-center justify-between text-sm">
+                <span className="text-gray-700 font-medium">{o.user_id?.slice(0, 8)}...</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${o.is_trial ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                  {o.is_trial ? 'Trial' : '₹49'}
+                </span>
+                <span className="text-gray-400 text-xs">{o.created_at ? new Date(o.created_at).toLocaleDateString('en-IN') : '-'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Revenue Trends Dashboard — Daily/Weekly charts
+const RevenueTrendsPanel = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('daily');
+
+  useEffect(() => {
+    adminApi.get('/admin/revenue-trends')
+      .then(r => setData(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="animate-pulse space-y-3"><div className="h-20 bg-gray-200 rounded-xl" /><div className="h-48 bg-gray-100 rounded-xl" /></div>;
+  if (!data) return <p className="text-gray-500 text-center py-8">Failed to load revenue data</p>;
+
+  const totals = data.totals || {};
+  const dailyData = data.daily || [];
+  const weeklyData = data.weekly || [];
+  const maxRevenue = Math.max(...dailyData.map(d => d.revenue), 1);
+
+  return (
+    <div className="space-y-5" data-testid="revenue-trends-panel">
+      <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+        <TrendingUp className="w-5 h-5 text-emerald-500" /> Revenue Dashboard
+      </h2>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+          <p className="text-2xl font-bold text-emerald-600">₹{totals.total_revenue || 0}</p>
+          <p className="text-[10px] text-gray-500">Total Revenue</p>
+        </div>
+        <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+          <p className="text-2xl font-bold text-blue-600">{totals.total_approved || 0}</p>
+          <p className="text-[10px] text-gray-500">Total Approved</p>
+        </div>
+        <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
+          <p className="text-2xl font-bold text-amber-600">₹{totals.today_revenue || 0}</p>
+          <p className="text-[10px] text-gray-500">Today Revenue</p>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-3 border border-purple-100">
+          <p className="text-2xl font-bold text-purple-600">{totals.today_approved || 0}</p>
+          <p className="text-[10px] text-gray-500">Today Approved</p>
+        </div>
+      </div>
+
+      {/* Toggle Daily/Weekly */}
+      <div className="flex gap-2">
+        <Button size="sm" onClick={() => setView('daily')} className={view === 'daily' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-600'}>Daily (30d)</Button>
+        <Button size="sm" onClick={() => setView('weekly')} className={view === 'weekly' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-600'}>Weekly</Button>
+      </div>
+
+      {view === 'daily' ? (
+        <>
+          {/* Daily Revenue Bar Chart */}
+          <div className="bg-white rounded-xl p-4 border">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Daily Revenue (Last 30 Days)</h3>
+            <div className="flex items-end gap-0.5 h-36 overflow-x-auto no-scrollbar">
+              {dailyData.map((d, i) => (
+                <div key={i} className="flex flex-col items-center min-w-[18px] flex-1 group relative">
+                  <div
+                    className="w-full rounded-t transition-all duration-300 cursor-pointer hover:opacity-80"
+                    style={{
+                      height: `${Math.max((d.revenue / maxRevenue) * 100, 2)}%`,
+                      background: d.revenue > 0 ? 'linear-gradient(to top, #10b981, #34d399)' : '#e5e7eb',
+                    }}
+                  />
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap">
+                    {d.label}: ₹{d.revenue} ({d.approved} approved, {d.new_users} new users)
+                  </div>
+                  {i % 5 === 0 && <span className="text-[8px] text-gray-400 mt-1 rotate-[-45deg] origin-left">{d.label}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Daily Table */}
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="max-h-64 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-gray-600">Date</th>
+                    <th className="px-3 py-2 text-right text-green-600">Approved</th>
+                    <th className="px-3 py-2 text-right text-red-600">Rejected</th>
+                    <th className="px-3 py-2 text-right text-amber-600">Pending</th>
+                    <th className="px-3 py-2 text-right text-emerald-600">Revenue</th>
+                    <th className="px-3 py-2 text-right text-blue-600">New Users</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {dailyData.slice().reverse().map((d, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 font-medium text-gray-700">{d.label}</td>
+                      <td className="px-3 py-2 text-right text-green-600 font-bold">{d.approved}</td>
+                      <td className="px-3 py-2 text-right text-red-500">{d.rejected}</td>
+                      <td className="px-3 py-2 text-right text-amber-500">{d.pending}</td>
+                      <td className="px-3 py-2 text-right text-emerald-600 font-bold">₹{d.revenue}</td>
+                      <td className="px-3 py-2 text-right text-blue-500">{d.new_users}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Weekly View */
+        <div className="space-y-3">
+          {weeklyData.map((w, i) => (
+            <div key={i} className="bg-white rounded-xl p-4 border flex items-center justify-between">
+              <div>
+                <p className="font-bold text-gray-900">{w.label}</p>
+                <p className="text-xs text-gray-500">{w.new_users} new users | {w.conversion}% conversion</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-bold text-emerald-600">₹{w.revenue}</p>
+                <p className="text-xs text-green-500">{w.approved} approved</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Premium Overview Widget for Overview tab
+const PremiumOverviewWidget = () => {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    adminApi.get('/admin/premium-analytics').then(r => setData(r.data)).catch(() => {});
+  }, []);
+
+  if (!data) return null;
+  const s = data.summary || {};
+
+  return (
+    <div className="bg-white rounded-xl shadow-md p-6">
+      <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+        <Crown className="w-5 h-5 text-amber-500" /> Premium Overview
+      </h3>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <div className="bg-amber-50 rounded-xl p-3">
+          <p className="text-2xl font-bold text-amber-600">{s.total_premium || 0}</p>
+          <p className="text-[10px] text-gray-500">Total Premium</p>
+        </div>
+        <div className="bg-green-50 rounded-xl p-3">
+          <p className="text-2xl font-bold text-green-600">{s.trialing || 0}</p>
+          <p className="text-[10px] text-gray-500">On Trial</p>
+        </div>
+        <div className="bg-blue-50 rounded-xl p-3">
+          <p className="text-2xl font-bold text-blue-600">{s.active_paid || 0}</p>
+          <p className="text-[10px] text-gray-500">Paid Active</p>
+        </div>
+        <div className="bg-emerald-50 rounded-xl p-3">
+          <p className="text-2xl font-bold text-emerald-600">₹{s.estimated_revenue_inr || 0}</p>
+          <p className="text-[10px] text-gray-500">Est. Revenue</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <span className="px-2.5 py-1 rounded-full bg-red-50 text-red-600 font-medium">Cancelled: {s.cancelled || 0}</span>
+        <span className="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 font-medium">Expired: {s.expired || 0}</span>
+        <span className="px-2.5 py-1 rounded-full bg-pink-50 text-pink-600 font-medium">Girls Free: {s.girls_free_premium || 0}</span>
+        <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600 font-medium">Conversion: {s.conversion_rate || 0}%</span>
+      </div>
+    </div>
+  );
+};
+
+// Version Analytics Panel — registrations per app version
+const VersionAnalyticsPanel = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    adminApi.get('/admin/version-analytics')
+      .then(r => setData(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="animate-pulse space-y-3"><div className="h-20 bg-gray-200 rounded-xl" /><div className="h-40 bg-gray-100 rounded-xl" /></div>;
+  if (!data) return <p className="text-gray-500 text-center py-8">Failed to load version data</p>;
+
+  const versions = data.versions || [];
+  const dailyCurrent = data.daily_current_version || [];
+  const todayByVersion = data.today_by_version || {};
+  const maxDaily = Math.max(...dailyCurrent.map(d => d.count), 1);
+
+  return (
+    <div className="space-y-5" data-testid="version-analytics-panel">
+      <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+        <Sparkles className="w-5 h-5 text-blue-500" /> Version Analytics
+      </h2>
+
+      {/* Summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+          <p className="text-2xl font-bold text-blue-600">v{data.current_version}</p>
+          <p className="text-[10px] text-gray-500">Version (Code: {data.current_version_code || '?'})</p>
+        </div>
+        <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+          <p className="text-2xl font-bold text-emerald-600">{data.total_users}</p>
+          <p className="text-[10px] text-gray-500">Total Real Users</p>
+        </div>
+        <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
+          <p className="text-2xl font-bold text-amber-600">{Object.values(todayByVersion).reduce((a, b) => a + b, 0)}</p>
+          <p className="text-[10px] text-gray-500">Today Signups</p>
+        </div>
+      </div>
+
+      {/* Version-wise Registrations Table */}
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b">
+          <h3 className="text-sm font-semibold text-gray-700">Registrations by Version</h3>
+        </div>
+        <div className="max-h-64 overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <th className="px-4 py-2 text-left text-gray-600">Version</th>
+                <th className="px-4 py-2 text-right text-gray-600">Users</th>
+                <th className="px-4 py-2 text-right text-gray-600">% Share</th>
+                <th className="px-4 py-2 text-right text-gray-600">First Signup</th>
+                <th className="px-4 py-2 text-right text-gray-600">Last Signup</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {versions.map((v, i) => {
+                const share = data.total_users > 0 ? ((v.registrations / data.total_users) * 100).toFixed(1) : 0;
+                const isCurrent = v.version === data.current_version;
+                return (
+                  <tr key={i} className={`hover:bg-gray-50 ${isCurrent ? 'bg-blue-50/50' : ''}`}>
+                    <td className="px-4 py-2.5">
+                      <span className={`font-bold ${isCurrent ? 'text-blue-600' : 'text-gray-800'}`}>
+                        v{v.version}
+                      </span>
+                      {isCurrent && <span className="ml-1.5 text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">CURRENT</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-bold text-gray-900">{v.registrations}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${share}%` }} />
+                        </div>
+                        <span className="text-gray-600 w-10 text-right">{share}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-gray-500">{v.first_signup ? new Date(v.first_signup).toLocaleDateString('en-IN') : '-'}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-500">{v.last_signup ? new Date(v.last_signup).toLocaleDateString('en-IN') : '-'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Daily Chart for Current Version */}
+      <div className="bg-white rounded-xl p-4 border">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Daily Signups — v{data.current_version} (Last 30 Days)</h3>
+        <div className="flex items-end gap-0.5 h-28 overflow-x-auto no-scrollbar">
+          {dailyCurrent.map((d, i) => (
+            <div key={i} className="flex flex-col items-center min-w-[14px] flex-1 group relative">
+              <div
+                className="w-full rounded-t transition-all duration-300 cursor-pointer hover:opacity-80"
+                style={{
+                  height: `${Math.max((d.count / maxDaily) * 100, 3)}%`,
+                  background: d.count > 0 ? 'linear-gradient(to top, #3b82f6, #60a5fa)' : '#e5e7eb',
+                }}
+              />
+              <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap">
+                {d.label}: {d.count} signups
+              </div>
+              {i % 7 === 0 && <span className="text-[7px] text-gray-400 mt-1">{d.label}</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Today's Breakdown */}
+      {Object.keys(todayByVersion).length > 0 && (
+        <div className="bg-white rounded-xl p-4 border">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Today's Signups by Version</h3>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(todayByVersion).map(([ver, count]) => (
+              <span key={ver} className={`px-3 py-1.5 rounded-full text-xs font-bold ${ver === data.current_version ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                v{ver}: {count}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// User Detail Modal
+const UserDetailModal = ({ user, onClose }) => {
+  if (!user) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-pink-400 to-orange-400 flex items-center justify-center overflow-hidden">
+            {user.profile_picture ? (
+              <img src={user.profile_picture} alt={user.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+            ) : (
+              <User className="w-10 h-10 text-white" />
+            )}
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">{user.name}</h2>
+            <p className="text-gray-500">{user.email || user.phone}</p>
+            <div className="flex gap-2 mt-2">
+              {user.verified && <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">Verified</span>}
+              {user.is_premium && <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full">Premium</span>}
+              {user.is_admin && <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">Admin</span>}
+            </div>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-gray-500">Gender</p>
+            <p className="font-medium">{user.gender || 'N/A'}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-gray-500">Age</p>
+            <p className="font-medium">{user.age || 'N/A'}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-gray-500">Location</p>
+            <p className="font-medium">{user.location || 'N/A'}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-gray-500">Looking For</p>
+            <p className="font-medium">{user.looking_for || 'N/A'}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-gray-500">Joined</p>
+            <p className="font-medium">{user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-gray-500">Last Active</p>
+            <p className="font-medium">{user.last_active ? new Date(user.last_active).toLocaleString() : 'N/A'}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg col-span-2">
+            <p className="text-gray-500">Bio</p>
+            <p className="font-medium">{user.bio || 'No bio'}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-gray-500">Trust Level</p>
+            <p className="font-medium">{user.trust_badge_level || 'low'}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-gray-500">Risk Score</p>
+            <p className="font-medium">{user.risk_score || 0}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-gray-500">Total Matches</p>
+            <p className="font-medium">{user.total_matches || 0}</p>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-gray-500">Total Likes</p>
+            <p className="font-medium">{user.total_likes_received || 0}</p>
+          </div>
+        </div>
+        
+        <div className="mt-4">
+          <p className="text-gray-500 text-sm mb-2">Interests</p>
+          <div className="flex flex-wrap gap-2">
+            {user.interests?.length > 0 ? user.interests.map((interest, i) => (
+              <span key={i} className="px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-sm">{interest}</span>
+            )) : <span className="text-gray-400">No interests</span>}
+          </div>
+        </div>
+        
+        <Button onClick={onClose} className="w-full mt-6" variant="outline">Close</Button>
+      </div>
+    </div>
+  );
+};
+
+// Error Fallback Component
+const ErrorFallback = ({ error, resetError }) => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="bg-white rounded-xl shadow-lg p-6 max-w-md text-center">
+      <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+      <h2 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h2>
+      <p className="text-gray-600 mb-4">{error?.message || 'An error occurred'}</p>
+      <Button onClick={resetError} className="bg-pink-500 hover:bg-pink-600">Try Again</Button>
+    </div>
+  </div>
+);
+
+// Main AdminDashboard Component
+const AdminDashboard = ({ user }) => {
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [users, setUsers] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [pendingVerifications, setPendingVerifications] = useState([]);
+  const [verifiedUsers, setVerifiedUsers] = useState([]);
+  const [showVerifiedTab, setShowVerifiedTab] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [showUserDetail, setShowUserDetail] = useState(false);
+  const [blockReason, setBlockReason] = useState('');
+  // Promo codes
+  const [promoCodes, setPromoCodes] = useState([]);
+  const [newPromoCode, setNewPromoCode] = useState('');
+  const [newPromoDays, setNewPromoDays] = useState(30);
+  const [newPromoMaxUses, setNewPromoMaxUses] = useState(100);
+  // Payment requests
+  const [paymentRequests, setPaymentRequests] = useState([]);
+  const [paymentFilter, setPaymentFilter] = useState('pending');
+  const [selectedPayments, setSelectedPayments] = useState(new Set());
+  const [bulkDays, setBulkDays] = useState(30);
+  const [bulkRejectReason, setBulkRejectReason] = useState('');
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [blockPermanent, setBlockPermanent] = useState(false);
+  const [genderFilter, setGenderFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
+  const [reverifyReason, setReverifyReason] = useState('');
+  const [featureFlags, setFeatureFlags] = useState({ referral_system: true, daily_rewards: true });
+  const [flagsLoading, setFlagsLoading] = useState(false);
+  const [aiProfiles, setAiProfiles] = useState([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState(null);
+
+  // Fetch feature flags
+  const fetchFeatureFlags = useCallback(async () => {
+    try {
+      const res = await adminApi.get(`/admin/feature-flags`);
+      setFeatureFlags(res.data);
+    } catch (e) {
+      console.error('Feature flags fetch error:', e);
+    }
+  }, []);
+
+  const toggleFeatureFlag = async (flagName, value) => {
+    setFlagsLoading(true);
+    try {
+      const res = await adminApi.put(`/admin/feature-flags`, { [flagName]: value });
+      setFeatureFlags(res.data);
+      toast.success(`${flagName.replace('_', ' ')} ${value ? 'enabled' : 'disabled'}!`);
+    } catch (e) {
+      toast.error('Failed to update feature flag');
+    } finally {
+      setFlagsLoading(false);
+    }
+  };
+
+  // AI Profiles Management
+  const fetchAiProfiles = useCallback(async () => {
+    setAiLoading(true);
+    try {
+      const res = await adminApi.get(`/admin/ai-profiles`);
+      setAiProfiles(res.data);
+    } catch (e) {
+      console.error('AI profiles fetch error:', e);
+    } finally {
+      setAiLoading(false);
+    }
+  }, []);
+
+  const toggleAiProfile = async (profileId, isActive) => {
+    try {
+      await adminApi.put(`/admin/ai-profiles/${profileId}/toggle`, { is_active: isActive });
+      toast.success(`AI profile ${isActive ? 'activated' : 'deactivated'}`);
+      fetchAiProfiles();
+    } catch (e) {
+      toast.error('Failed to toggle AI profile');
+    }
+  };
+
+  const fetchPromoCodes = useCallback(async () => {
+    try {
+      const res = await adminApi.get('/admin/promo-codes');
+      setPromoCodes(res.data || []);
+    } catch (e) { console.error('Promo fetch error:', e); }
+  }, []);
+
+  const createPromoCode = async () => {
+    if (!newPromoCode.trim()) { toast.error('Enter a code'); return; }
+    try {
+      await adminApi.post('/admin/promo-codes/create', {
+        code: newPromoCode.trim(),
+        days: newPromoDays,
+        max_uses: newPromoMaxUses,
+      });
+      toast.success(`Code "${newPromoCode.toUpperCase()}" created!`);
+      setNewPromoCode('');
+      fetchPromoCodes();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Failed'); }
+  };
+
+  const deactivatePromoCode = async (code) => {
+    try {
+      await adminApi.delete(`/admin/promo-codes/${code}`);
+      toast.success(`Code ${code} deactivated`);
+      fetchPromoCodes();
+    } catch (e) { toast.error('Failed'); }
+  };
+
+  const fetchPaymentRequests = useCallback(async (filter = 'pending') => {
+    try {
+      const res = await adminApi.get(`/admin/payment-requests?status=${filter}`);
+      setPaymentRequests(res.data || []);
+    } catch (e) { console.error('Payment fetch error:', e); }
+  }, []);
+
+  const approvePayment = async (requestId) => {
+    try {
+      await adminApi.post(`/admin/payment-requests/${requestId}/approve`, { days: 30 });
+      toast.success('Premium activated!');
+      fetchPaymentRequests(paymentFilter);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Failed'); }
+  };
+
+  const rejectPayment = async (requestId) => {
+    const reason = prompt('Rejection reason:');
+    if (!reason) return;
+    try {
+      await adminApi.post(`/admin/payment-requests/${requestId}/reject`, { reason });
+      toast.success('Payment rejected');
+      fetchPaymentRequests(paymentFilter);
+    } catch (e) { toast.error('Failed'); }
+  };
+
+  const togglePaymentSelection = (id) => {
+    setSelectedPayments(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllPayments = () => {
+    const pending = paymentRequests.filter(r => r.status === 'pending').map(r => r.id);
+    if (selectedPayments.size === pending.length) {
+      setSelectedPayments(new Set());
+    } else {
+      setSelectedPayments(new Set(pending));
+    }
+  };
+
+  const bulkApprovePayments = async () => {
+    if (selectedPayments.size === 0) { toast.error('Select payments first'); return; }
+    setBulkProcessing(true);
+    try {
+      const res = await adminApi.post('/admin/payment-requests/bulk-approve', {
+        request_ids: Array.from(selectedPayments),
+        days: bulkDays,
+      });
+      toast.success(`${res.data.approved} payments approved! ${res.data.failed > 0 ? `${res.data.failed} failed` : ''}`);
+      setSelectedPayments(new Set());
+      fetchPaymentRequests(paymentFilter);
+    } catch (e) { toast.error('Bulk approve failed'); }
+    setBulkProcessing(false);
+  };
+
+  const bulkRejectPayments = async () => {
+    if (selectedPayments.size === 0) { toast.error('Select payments first'); return; }
+    if (!bulkRejectReason.trim()) { toast.error('Enter rejection reason'); return; }
+    setBulkProcessing(true);
+    try {
+      const res = await adminApi.post('/admin/payment-requests/bulk-reject', {
+        request_ids: Array.from(selectedPayments),
+        reason: bulkRejectReason.trim(),
+      });
+      toast.success(`${res.data.rejected} payments rejected`);
+      setSelectedPayments(new Set());
+      setBulkRejectReason('');
+      fetchPaymentRequests(paymentFilter);
+    } catch (e) { toast.error('Bulk reject failed'); }
+    setBulkProcessing(false);
+  };
+
+
+  const deleteAiProfile = async (profileId, name) => {
+    if (!window.confirm(`Kya aap "${name}" AI profile delete karna chahte ho? Iske saare matches aur messages bhi delete ho jayenge.`)) return;
+    try {
+      await adminApi.delete(`/admin/ai-profiles/${profileId}`);
+      toast.success(`${name} deleted successfully`);
+      fetchAiProfiles();
+    } catch (e) {
+      toast.error('Failed to delete AI profile');
+    }
+  };
+
+  const reseedAiProfiles = async () => {
+    try {
+      await adminApi.post(`/admin/ai-profiles/reseed`);
+      toast.success('AI profiles re-seeded!');
+      fetchAiProfiles();
+    } catch (e) {
+      toast.error('Failed to reseed AI profiles');
+    }
+  };
+
+  // Fetch dashboard stats — always fresh
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError(null);
+    try {
+      const res = await adminApi.get(`/admin/dashboard-stats`, {
+        params: { _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      setStats(res.data);
+      setLastRefreshed(new Date());
+    } catch (e) {
+      console.error('Stats fetch error:', e);
+      setStatsError(e.response?.data?.detail || e.message || 'Failed to load stats');
+      toast.error('Failed to load dashboard stats: ' + (e.response?.data?.detail || e.message));
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  // Fetch users with filters
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await adminApi.get(`/admin/all-users`, {
+        params: { 
+          search: searchQuery, 
+          page: currentPage, 
+          limit: 15,
+          gender: genderFilter !== 'all' ? genderFilter : undefined,
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+          sort: sortBy,
+          _t: Date.now()
+        },
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      
+      if (Array.isArray(response.data)) {
+        setUsers(response.data);
+        setTotalPages(1);
+      } else {
+        setUsers(response.data.users || []);
+        setTotalPages(response.data.pages || 1);
+      }
+    } catch (err) {
+      console.error('Failed to load users:', err);
+      toast.error('Failed to load users');
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, currentPage, genderFilter, statusFilter, sortBy]);
+
+  const fetchPendingVerifications = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await adminApi.get(`/admin/pending-verifications`);
+      setPendingVerifications(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Failed to load verifications:', err);
+      setPendingVerifications([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchVerifiedUsers = useCallback(async () => {
+    try {
+      const response = await adminApi.get(`/admin/verified-users`);
+      setVerifiedUsers(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Failed to load verified users:', err);
+      setVerifiedUsers([]);
+    }
+  }, []);
+
+  const handleRequestReverify = async (userId) => {
+    try {
+      const res = await adminApi.post(`/admin/request-reverify`, {
+        user_id: userId,
+        reason: reverifyReason
+      });
+      if (res.data.success) {
+        toast.success('Re-verification requested');
+        setReverifyReason('');
+        fetchVerifiedUsers();
+        fetchPendingVerifications();
+      }
+    } catch (err) {
+      toast.error('Failed to request re-verification');
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+    // Auto-refresh stats every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, [fetchStats]);
+
+  useEffect(() => {
+    if (activeTab === 'users') {
+      fetchUsers();
+    } else if (activeTab === 'verifications') {
+      fetchPendingVerifications();
+      fetchVerifiedUsers();
+    } else if (activeTab === 'settings') {
+      fetchFeatureFlags();
+    } else if (activeTab === 'ai-profiles') {
+      fetchAiProfiles();
+    } else if (activeTab === 'promo-codes') {
+      fetchPromoCodes();
+    } else if (activeTab === 'payments') {
+      fetchPaymentRequests(paymentFilter);
+    }
+  }, [activeTab, fetchUsers, fetchPendingVerifications, fetchVerifiedUsers, fetchFeatureFlags, fetchAiProfiles]);
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    try {
+      await adminApi.delete(`/admin/user/${selectedUser.id}`);
+      toast.success(`User ${selectedUser.name} deleted`);
+      setShowDeleteModal(false);
+      setSelectedUser(null);
+      fetchUsers();
+      fetchStats();
+    } catch (err) {
+      toast.error('Failed to delete user');
+    }
+  };
+
+  const handleBlockUser = async () => {
+    if (!selectedUser) return;
+    try {
+      await adminApi.post(`/admin/user/${selectedUser.id}/block`, null, {
+        params: { permanent: blockPermanent, reason: blockReason }
+      });
+      toast.success(`User ${selectedUser.name} ${blockPermanent ? 'permanently banned' : 'shadow banned'}`);
+      setShowBlockModal(false);
+      setSelectedUser(null);
+      setBlockReason('');
+      setBlockPermanent(false);
+      fetchUsers();
+    } catch (err) {
+      toast.error('Failed to block user');
+    }
+  };
+
+  const handleUnblockUser = async (userId, userName) => {
+    try {
+      await adminApi.post(`/admin/user/${userId}/unblock`);
+      toast.success(`User ${userName} unblocked`);
+      fetchUsers();
+    } catch (err) {
+      toast.error('Failed to unblock user');
+    }
+  };
+
+  const handleVerifySelfie = async (userId, action, reason = '') => {
+    try {
+      await adminApi.post(`/admin/verify-selfie`, { user_id: userId, action, reason });
+      toast.success(`Verification ${action === 'approve' ? 'approved' : 'rejected'}`);
+      fetchPendingVerifications();
+    } catch (err) {
+      toast.error('Failed to process verification');
+    }
+  };
+
+  const handleViewUser = (user) => {
+    setSelectedUser(user);
+    setShowUserDetail(true);
+  };
+
+  const handleToggleAutoChat = async (userId, userName, enable) => {
+    try {
+      const endpoint = enable ? '/admin/auto-chat/enable' : '/admin/auto-chat/disable';
+      await adminApi.post(endpoint, { user_id: userId });
+      toast.success(`${userName} auto-chat ${enable ? 'ON' : 'OFF'}`);
+      fetchUsers();
+    } catch (e) {
+      toast.error('Failed: ' + (e.response?.data?.detail || e.message));
+    }
+  };
+
+  const handleToggleCustomAI = async (userId, userName, enable) => {
+    try {
+      await adminApi.post('/admin/custom-ai-persona/toggle', { user_id: userId, enable });
+      toast.success(`${userName} Custom AI Persona ${enable ? 'ON ✨' : 'OFF'}`);
+      fetchUsers();
+    } catch (e) {
+      toast.error('Failed: ' + (e.response?.data?.detail || e.message));
+    }
+  };
+
+
+  const handleResetPassword = async () => {
+    if (!selectedUser || !resetNewPassword) return;
+    setResetPasswordLoading(true);
+    try {
+      await adminApi.post(`/admin/reset-user-password`, {
+        user_id: selectedUser.id,
+        new_password: resetNewPassword
+      });
+      toast.success(`${selectedUser.name} ka password reset ho gaya!`);
+      setShowResetPasswordModal(false);
+      setResetNewPassword('');
+      setSelectedUser(null);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Password reset failed');
+    } finally {
+      setResetPasswordLoading(false);
+    }
+  };
+
+  if (error) {
+    return <ErrorFallback error={error} resetError={() => { setError(null); fetchUsers(); }} />;
+  }
+
+  return (
+    <div className="min-h-screen" style={{ background: 'var(--m3-surface-container-low)', paddingTop: 'calc(var(--safe-top, 24px) + 100px)', paddingBottom: 'calc(var(--nav-total, 86px) + 16px)' }}>
+      <TopBar />
+      <Toaster position="top-center" richColors />
+      <Navbar user={user} />
+
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+            <p className="text-gray-600">Manage users, verifications & notifications</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {lastRefreshed && (
+              <span className="text-xs text-gray-400">
+                Last: {lastRefreshed.toLocaleTimeString('en-IN')}
+              </span>
+            )}
+            <Button 
+              onClick={() => { fetchStats(); if (activeTab === 'users') fetchUsers(); }}
+              disabled={statsLoading}
+              data-testid="admin-refresh-btn"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${statsLoading ? 'animate-spin' : ''}`} /> 
+              {statsLoading ? 'Loading...' : 'Refresh'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6 flex-wrap">
+          <Button
+            onClick={() => setActiveTab('overview')}
+            className={activeTab === 'overview' ? 'bg-pink-500' : 'bg-gray-200 text-gray-700'}
+          >
+            <BarChart3 className="w-4 h-4 mr-2" /> Overview
+          </Button>
+          <Button
+            onClick={() => setActiveTab('users')}
+            className={activeTab === 'users' ? 'bg-pink-500' : 'bg-gray-200 text-gray-700'}
+          >
+            <Users className="w-4 h-4 mr-2" /> All Users
+          </Button>
+          <Button
+            onClick={() => setActiveTab('verifications')}
+            className={activeTab === 'verifications' ? 'bg-pink-500' : 'bg-gray-200 text-gray-700'}
+          >
+            <Camera className="w-4 h-4 mr-2" /> Verifications
+            {pendingVerifications?.length > 0 && (
+              <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                {pendingVerifications.length}
+              </span>
+            )}
+          </Button>
+          <Button
+            onClick={() => setActiveTab('approvals')}
+            className={activeTab === 'approvals' ? 'bg-pink-500' : 'bg-gray-200 text-gray-700'}
+          >
+            <ClipboardCheck className="w-4 h-4 mr-2" /> Approvals
+          </Button>
+          <Button
+            onClick={() => setActiveTab('notifications')}
+            className={activeTab === 'notifications' ? 'bg-pink-500' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-notifications-tab"
+          >
+            <Bell className="w-4 h-4 mr-2" /> Notifications
+          </Button>
+          <Button
+            onClick={() => setActiveTab('settings')}
+            className={activeTab === 'settings' ? 'bg-pink-500' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-settings-tab"
+          >
+            <Settings className="w-4 h-4 mr-2" /> Settings
+          </Button>
+          <Button
+            onClick={() => setActiveTab('ai-profiles')}
+            className={activeTab === 'ai-profiles' ? 'bg-purple-500' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-ai-profiles-tab"
+          >
+            <Bot className="w-4 h-4 mr-2" /> AI Girls
+          </Button>
+          <Button
+            onClick={() => setActiveTab('ai-style')}
+            className={activeTab === 'ai-style' ? 'bg-purple-600' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-ai-style-tab"
+          >
+            <Bot className="w-4 h-4 mr-2" /> AI Chat Style
+          </Button>
+          <Button
+            onClick={() => setActiveTab('ai-photos')}
+            className={activeTab === 'ai-photos' ? 'bg-purple-600' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-ai-photos-tab"
+          >
+            <Bot className="w-4 h-4 mr-2" /> AI Photos
+          </Button>
+          <Button
+            onClick={() => setActiveTab('promo-codes')}
+            className={activeTab === 'promo-codes' ? 'bg-amber-500' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-promo-tab"
+          >
+            <Gift className="w-4 h-4 mr-2" /> Promo Codes
+          </Button>
+          <Button
+            onClick={() => setActiveTab('payments')}
+            className={activeTab === 'payments' ? 'bg-green-500' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-payments-tab"
+          >
+            <DollarSign className="w-4 h-4 mr-2" /> Payments
+          </Button>
+          <Button
+            onClick={() => setActiveTab('growth')}
+            className={activeTab === 'growth' ? 'bg-green-600' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-growth-tab"
+          >
+            <TrendingUp className="w-4 h-4 mr-2" /> Growth
+          </Button>
+          <Button
+            onClick={() => setActiveTab('ads')}
+            className={activeTab === 'ads' ? 'bg-amber-600' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-ads-tab"
+          >
+            <Flame className="w-4 h-4 mr-2" /> Ads
+          </Button>
+          <Button
+            onClick={() => setActiveTab('safety')}
+            className={activeTab === 'safety' ? 'bg-red-600' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-safety-tab"
+          >
+            <Shield className="w-4 h-4 mr-2" /> Safety
+          </Button>
+          <Button
+            onClick={() => setActiveTab('revenue')}
+            className={activeTab === 'revenue' ? 'bg-emerald-600' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-revenue-tab"
+          >
+            <DollarSign className="w-4 h-4 mr-2" /> Revenue
+          </Button>
+          <Button
+            onClick={() => setActiveTab('versions')}
+            className={activeTab === 'versions' ? 'bg-blue-600' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-versions-tab"
+          >
+            <Sparkles className="w-4 h-4 mr-2" /> Versions
+          </Button>
+          <Button
+            onClick={() => setActiveTab('premium')}
+            className={activeTab === 'premium' ? 'bg-amber-600' : 'bg-gray-200 text-gray-700'}
+            data-testid="admin-premium-tab"
+          >
+            <Crown className="w-4 h-4 mr-2" /> Premium
+          </Button>
+        </div>
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Error Banner */}
+            {statsError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3" data-testid="stats-error-banner">
+                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-red-800">Failed to load stats</p>
+                  <p className="text-xs text-red-600">{statsError}</p>
+                </div>
+                <Button size="sm" className="ml-auto bg-red-500 hover:bg-red-600" onClick={fetchStats}>Retry</Button>
+              </div>
+            )}
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard 
+                icon={Users} 
+                label="Total Users" 
+                value={stats?.total_users || 0}
+                subValue={`+${stats?.new_today || 0} today`}
+                color="bg-blue-500" 
+                bgColor="bg-blue-50" 
+              />
+              <StatCard 
+                icon={User} 
+                label="Male Users" 
+                value={stats?.male_users || 0}
+                subValue={`${stats?.total_users ? Math.round((stats.male_users / stats.total_users) * 100) : 0}%`}
+                color="bg-sky-500" 
+                bgColor="bg-sky-50" 
+              />
+              <StatCard 
+                icon={User} 
+                label="Female Users" 
+                value={stats?.female_users || 0}
+                subValue={`${stats?.total_users ? Math.round((stats.female_users / stats.total_users) * 100) : 0}%`}
+                color="bg-pink-500" 
+                bgColor="bg-pink-50" 
+              />
+              <StatCard 
+                icon={Activity} 
+                label="🟢 Online Now" 
+                value={stats?.online_now || 0}
+                subValue="Last 5 min"
+                color="bg-emerald-500" 
+                bgColor="bg-emerald-50" 
+              />
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard 
+                icon={Activity} 
+                label="Active Today" 
+                value={stats?.active_today || 0}
+                color="bg-green-500" 
+                bgColor="bg-green-50" 
+              />
+              <StatCard 
+                icon={UserPlus} 
+                label="New This Week" 
+                value={stats?.new_this_week || 0}
+                color="bg-purple-500" 
+                bgColor="bg-purple-50" 
+              />
+              <StatCard 
+                icon={Heart} 
+                label="Total Matches" 
+                value={stats?.total_matches || 0}
+                color="bg-red-500" 
+                bgColor="bg-red-50" 
+              />
+              <StatCard 
+                icon={Crown} 
+                label="Premium Users" 
+                value={stats?.premium_users || 0}
+                color="bg-amber-500" 
+                bgColor="bg-amber-50" 
+              />
+              <StatCard 
+                icon={CheckCircle} 
+                label="Verified Users" 
+                value={stats?.verified_users || 0}
+                color="bg-teal-500" 
+                bgColor="bg-teal-50" 
+              />
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard 
+                icon={Clock} 
+                label="Inactive (7+ days)" 
+                value={stats?.inactive_users || 0}
+                color="bg-gray-500" 
+                bgColor="bg-gray-100" 
+              />
+              <StatCard 
+                icon={Ban} 
+                label="Banned Users" 
+                value={stats?.banned_users || 0}
+                color="bg-red-600" 
+                bgColor="bg-red-50" 
+              />
+              <StatCard 
+                icon={Camera} 
+                label="Pending Verifications" 
+                value={stats?.pending_verifications || 0}
+                color="bg-orange-500" 
+                bgColor="bg-orange-50" 
+              />
+              <StatCard 
+                icon={MessageCircle} 
+                label="Total Messages" 
+                value={stats?.total_messages || 0}
+                color="bg-indigo-500" 
+                bgColor="bg-indigo-50" 
+              />
+            </div>
+
+            {/* Recent Activity */}
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-pink-500" />
+                Recent Signups
+              </h3>
+              <div className="space-y-3">
+                {stats?.recent_signups?.map((user, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 to-orange-400 flex items-center justify-center">
+                        {user.profile_picture ? (
+                          <img src={user.profile_picture} alt={user.name} className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          <User className="w-5 h-5 text-white" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{user.name}</p>
+                        <p className="text-xs text-gray-500">{user.email}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        user.gender?.toLowerCase() === 'male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
+                      }`}>
+                        {user.gender}
+                      </span>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {user.created_at ? new Date(user.created_at).toLocaleDateString() : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {(!stats?.recent_signups || stats.recent_signups.length === 0) && (
+                  <p className="text-center text-gray-500 py-4">No recent signups</p>
+                )}
+              </div>
+            </div>
+
+            {/* Premium Revenue Widget */}
+            <PremiumOverviewWidget />
+          </div>
+        )}
+
+        {/* Users Tab */}
+        {activeTab === 'users' && (
+          <>
+            {/* Filters */}
+            <div className="bg-white rounded-xl shadow-md p-4 mb-4">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Input
+                      placeholder="Search by name, email or phone..."
+                      value={searchQuery}
+                      onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                
+                <select
+                  value={genderFilter}
+                  onChange={(e) => { setGenderFilter(e.target.value); setCurrentPage(1); }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="all">All Genders</option>
+                  <option value="male">Male Only</option>
+                  <option value="female">Female Only</option>
+                </select>
+
+                <select
+                  value={statusFilter}
+                  onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active (7 days)</option>
+                  <option value="inactive">Inactive (7+ days)</option>
+                  <option value="premium">Premium</option>
+                  <option value="verified">Verified</option>
+                  <option value="banned">Banned</option>
+                </select>
+
+                <select
+                  value={sortBy}
+                  onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="last_active">Last Active</option>
+                  <option value="name">Name A-Z</option>
+                </select>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {users?.length > 0 && users.map(u => (
+                    u?.id ? (
+                      <UserCard 
+                        key={u.id} 
+                        u={u} 
+                        onBlock={(usr) => { setSelectedUser(usr); setShowBlockModal(true); }}
+                        onUnblock={handleUnblockUser}
+                        onDelete={(usr) => { setSelectedUser(usr); setShowDeleteModal(true); }}
+                        onView={handleViewUser}
+                        onResetPassword={(usr) => { setSelectedUser(usr); setShowResetPasswordModal(true); }}
+                        onToggleAutoChat={handleToggleAutoChat}
+                        onToggleCustomAI={handleToggleCustomAI}
+                      />
+                    ) : null
+                  ))}
+                </div>
+
+                {(!users || users.length === 0) && (
+                  <div className="text-center py-12 text-gray-500">No users found</div>
+                )}
+
+                {totalPages > 1 && (
+                  <div className="flex justify-center items-center gap-4 mt-6">
+                    <Button variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <span className="text-gray-600">Page {currentPage} of {totalPages}</span>
+                    <Button variant="outline" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {/* Verifications Tab */}
+        {activeTab === 'verifications' && (
+          <>
+            {/* Toggle between pending and verified */}
+            <div className="flex gap-2 mb-6">
+              <Button
+                onClick={() => setShowVerifiedTab(false)}
+                className={!showVerifiedTab ? 'bg-pink-500' : 'bg-gray-200 text-gray-700'}
+              >
+                Pending ({pendingVerifications?.length || 0})
+              </Button>
+              <Button
+                onClick={() => setShowVerifiedTab(true)}
+                className={showVerifiedTab ? 'bg-green-500' : 'bg-gray-200 text-gray-700'}
+              >
+                ✓ Verified ({verifiedUsers?.length || 0})
+              </Button>
+            </div>
+
+            {!showVerifiedTab ? (
+              // Pending Verifications
+              loading ? (
+                <div className="flex justify-center py-12">
+                  <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : (!pendingVerifications || pendingVerifications.length === 0) ? (
+                <div className="text-center py-12">
+                  <Camera className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-600">No pending verifications</h3>
+                  <p className="text-gray-400">All caught up!</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {pendingVerifications.map(v => (
+                    v?.id ? <VerificationCard key={v.id} v={v} onVerify={handleVerifySelfie} /> : null
+                  ))}
+                </div>
+              )
+            ) : (
+              // Verified Users - Re-verify option
+              verifiedUsers.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-600">No verified users</h3>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {verifiedUsers.map(v => (
+                    <div key={v.id} className="bg-white rounded-xl shadow-lg p-4 border border-green-200">
+                      <div className="flex items-center gap-3 mb-3">
+                        <img
+                          src={v.profile_picture || '/default-avatar.png'}
+                          alt={v.name}
+                          className="w-14 h-14 rounded-full object-cover border-2 border-green-500"
+                          onError={(e) => { e.target.src = '/default-avatar.png'; }}
+                        />
+                        <div>
+                          <h4 className="font-semibold text-gray-900 flex items-center gap-1">
+                            {v.name}
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                          </h4>
+                          <p className="text-xs text-gray-500">
+                            Verified: {v.selfie_verified_at ? new Date(v.selfie_verified_at).toLocaleDateString() : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Selfie comparison */}
+                      {v.selfie_verification_url && (
+                        <div className="flex gap-2 mb-3">
+                          <img
+                            src={v.profile_picture}
+                            alt="Profile"
+                            className="w-16 h-16 rounded object-cover"
+                          />
+                          <img
+                            src={v.selfie_verification_url}
+                            alt="Selfie"
+                            className="w-16 h-16 rounded object-cover"
+                          />
+                        </div>
+                      )}
+                      
+                      {/* Re-verify button */}
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Reason (optional)"
+                          value={reverifyReason}
+                          onChange={(e) => setReverifyReason(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-sm"
+                        />
+                        <Button
+                          onClick={() => handleRequestReverify(v.id)}
+                          className="w-full bg-yellow-500 hover:bg-yellow-600 text-white"
+                          size="sm"
+                        >
+                          🔄 Request Re-verification
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </>
+        )}
+
+        {/* Notifications Tab */}
+        {activeTab === 'notifications' && (
+          <div className="space-y-6">
+            <SmartNotificationConfig />
+            <NotificationManager />
+            <UpdatePushCard />
+          </div>
+        )}
+
+        {/* Profile Approvals Tab */}
+        {activeTab === 'approvals' && <ProfileApprovals />}
+
+        {/* AI Girls Tab */}
+        {activeTab === 'ai-style' && <AiStyleEditor />}
+        {activeTab === 'ai-photos' && <AiPhotoReview />}
+
+        {activeTab === 'ai-profiles' && (
+          <div className="space-y-6" data-testid="admin-ai-profiles-panel">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">AI Girl Profiles</h2>
+                <p className="text-sm text-gray-500 mt-1">Manage AI chatbot profiles that auto-match with new users</p>
+              </div>
+              <Button onClick={reseedAiProfiles} variant="outline" data-testid="reseed-ai-btn">
+                <RotateCcw className="w-4 h-4 mr-2" /> Re-seed Profiles
+              </Button>
+              <AiPhotoRegen />
+            </div>
+
+            <AiReplyTiming />
+
+            {aiLoading ? (
+              <div className="text-center py-10 text-gray-500">Loading AI profiles...</div>
+            ) : aiProfiles.length === 0 ? (
+              <div className="text-center py-10 text-gray-500">No AI profiles found. Click Re-seed to create them.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {aiProfiles.map((profile) => (
+                  <div key={profile.id} className={`bg-white rounded-xl border-2 shadow-sm overflow-hidden transition-all ${profile.is_active_ai ? 'border-green-200' : 'border-red-200 opacity-75'}`} data-testid={`ai-profile-card-${profile.id}`}>
+                    <div className="relative">
+                      <div className="h-40 bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center">
+                        {profile.photos && profile.photos[0] ? (
+                          <img src={profile.photos[0]} alt={profile.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                        ) : (
+                          <Bot className="w-16 h-16 text-white/60" />
+                        )}
+                      </div>
+                      <div className={`absolute top-3 right-3 px-2 py-1 rounded-full text-xs font-semibold ${profile.is_active_ai ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                        {profile.is_active_ai ? 'Active' : 'Inactive'}
+                      </div>
+                    </div>
+
+                    <div className="p-4">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-gray-900 text-lg">{profile.name}</h3>
+                        <span className="text-sm text-gray-500">{profile.age}</span>
+                      </div>
+                      <p className="text-sm text-gray-500">{profile.location}</p>
+                      <p className="text-sm text-gray-600 mt-2 line-clamp-2">{profile.bio}</p>
+
+                      <div className="flex gap-3 mt-3 text-xs text-gray-500">
+                        <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {profile.total_matches || 0} matches</span>
+                        <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {profile.total_messages_sent || 0} msgs</span>
+                      </div>
+
+                      <AiPersonaSchedule profile={profile} />
+
+                      <div className="flex gap-2 mt-4">
+                        <button
+                          onClick={() => toggleAiProfile(profile.id, !profile.is_active_ai)}
+                          data-testid={`toggle-ai-${profile.id}`}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                            profile.is_active_ai
+                              ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                        >
+                          <Power className="w-4 h-4" />
+                          {profile.is_active_ai ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          onClick={() => deleteAiProfile(profile.id, profile.name)}
+                          data-testid={`delete-ai-${profile.id}`}
+                          className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-800">
+              <strong>How it works:</strong> AI girls auto-match with new male users (2-3 random matches). They send a greeting message and reply in Hinglish using AI. Deactivating a profile stops new matches and replies but keeps existing chats. Deleting removes all data.
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* User Detail Modal */}
+      {showUserDetail && <UserDetailModal user={selectedUser} onClose={() => { setShowUserDetail(false); setSelectedUser(null); }} />}
+
+      {/* Delete Modal */}
+      {showDeleteModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Delete User</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Delete <strong>{selectedUser.name}</strong>? All their data will be permanently removed.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => { setShowDeleteModal(false); setSelectedUser(null); }}>Cancel</Button>
+              <Button className="flex-1 bg-red-500 hover:bg-red-600" onClick={handleDeleteUser}>Delete</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Block Modal */}
+      {showBlockModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                <Ban className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Block User</h3>
+                <p className="text-sm text-gray-500">{selectedUser.name}</p>
+              </div>
+            </div>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                <Input placeholder="Enter reason..." value={blockReason} onChange={(e) => setBlockReason(e.target.value)} />
+              </div>
+              <div className="flex items-center gap-3">
+                <input type="checkbox" id="permanent" checked={blockPermanent} onChange={(e) => setBlockPermanent(e.target.checked)} className="w-4 h-4" />
+                <label htmlFor="permanent" className="text-sm text-gray-700">Permanent ban</label>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => { setShowBlockModal(false); setSelectedUser(null); setBlockReason(''); setBlockPermanent(false); }}>Cancel</Button>
+              <Button className={`flex-1 ${blockPermanent ? 'bg-red-500 hover:bg-red-600' : 'bg-yellow-500 hover:bg-yellow-600'}`} onClick={handleBlockUser}>
+                {blockPermanent ? 'Permanent Ban' : 'Shadow Ban'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {showResetPasswordModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <KeyRound className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900" data-testid="reset-password-modal-title">Reset Password</h3>
+                <p className="text-sm text-gray-500">{selectedUser.name} ({selectedUser.email})</p>
+              </div>
+            </div>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <Input 
+                  type="password" 
+                  placeholder="Enter new password..." 
+                  value={resetNewPassword} 
+                  onChange={(e) => setResetNewPassword(e.target.value)} 
+                  data-testid="reset-password-input"
+                />
+                <p className="text-xs text-gray-400 mt-1">Min 6 chars, mix of letters, numbers & special chars recommended</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => { setShowResetPasswordModal(false); setSelectedUser(null); setResetNewPassword(''); }} data-testid="reset-password-cancel-btn">Cancel</Button>
+              <Button 
+                className="flex-1 bg-blue-500 hover:bg-blue-600" 
+                onClick={handleResetPassword} 
+                disabled={!resetNewPassword || resetPasswordLoading}
+                data-testid="reset-password-confirm-btn"
+              >
+                {resetPasswordLoading ? 'Resetting...' : 'Reset Password'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Growth & Acquisition Tab */}
+      {/* Ads Analytics Tab */}
+      {activeTab === 'ads' && (
+        <AdAnalyticsPanel />
+      )}
+
+      {activeTab === 'promo-codes' && (
+        <div className="space-y-6" data-testid="admin-promo-panel">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Promo Codes</h2>
+            <p className="text-sm text-gray-500 mt-1">Create and manage promo codes for premium activation</p>
+          </div>
+
+          {/* Create New Code */}
+          <div className="bg-white rounded-xl p-4 shadow-sm border space-y-3">
+            <h3 className="font-semibold text-gray-800">Create New Code</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                value={newPromoCode}
+                onChange={e => setNewPromoCode(e.target.value.toUpperCase())}
+                placeholder="Code (e.g. HEARTLINK30)"
+                className="col-span-2 border rounded-lg px-3 py-2 text-sm uppercase"
+                data-testid="create-promo-code-input"
+              />
+              <div>
+                <label className="text-xs text-gray-500">Days</label>
+                <input type="number" value={newPromoDays} onChange={e => setNewPromoDays(parseInt(e.target.value) || 30)} className="w-full border rounded-lg px-3 py-2 text-sm" min={1} max={365} />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">Max Uses</label>
+                <input type="number" value={newPromoMaxUses} onChange={e => setNewPromoMaxUses(parseInt(e.target.value) || 1)} className="w-full border rounded-lg px-3 py-2 text-sm" min={1} max={10000} />
+              </div>
+            </div>
+            <Button onClick={createPromoCode} className="w-full bg-amber-500 hover:bg-amber-600" data-testid="create-promo-btn">
+              Create Promo Code
+            </Button>
+          </div>
+
+          {/* Active Codes */}
+          <div className="space-y-2">
+            {promoCodes.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">No promo codes yet. Create one above!</p>
+            ) : (
+              promoCodes.map((p, i) => (
+                <div key={i} className={`bg-white rounded-xl p-4 shadow-sm border flex items-center justify-between ${!p.is_active ? 'opacity-50' : ''}`}>
+                  <div>
+                    <p className="font-bold text-gray-900 font-mono tracking-wider">{p.code}</p>
+                    <p className="text-xs text-gray-500">{p.days} days | Used: {p.used_count}/{p.max_uses} | {p.is_active ? 'Active' : 'Inactive'}</p>
+                  </div>
+                  {p.is_active && (
+                    <Button onClick={() => deactivatePromoCode(p.code)} variant="outline" size="sm" className="text-red-500 border-red-200">
+                      Deactivate
+                    </Button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+
+      {activeTab === 'payments' && (
+        <div className="space-y-6" data-testid="admin-payments-panel">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Payment Verification</h2>
+            <p className="text-sm text-gray-500 mt-1">Verify UPI payment screenshots and activate premium</p>
+          </div>
+
+          {/* Filter + Stats */}
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex gap-2">
+              {['pending', 'approved', 'rejected', 'all'].map(f => (
+                <Button key={f} size="sm" onClick={() => { setPaymentFilter(f); fetchPaymentRequests(f); setSelectedPayments(new Set()); }}
+                  className={paymentFilter === f ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'}>
+                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                </Button>
+              ))}
+            </div>
+            <span className="text-xs text-gray-400">{paymentRequests.length} requests</span>
+          </div>
+
+          {/* Bulk Actions Bar */}
+          {paymentFilter === 'pending' && paymentRequests.filter(r => r.status === 'pending').length > 0 && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedPayments.size === paymentRequests.filter(r => r.status === 'pending').length && selectedPayments.size > 0}
+                    onChange={selectAllPayments}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    data-testid="select-all-payments"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Select All ({paymentRequests.filter(r => r.status === 'pending').length})</span>
+                </label>
+                {selectedPayments.size > 0 && (
+                  <span className="text-xs font-bold text-blue-600">{selectedPayments.size} selected</span>
+                )}
+              </div>
+              
+              {selectedPayments.size > 0 && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {/* Bulk Approve */}
+                  <div className="flex items-center gap-2 flex-1">
+                    <select
+                      value={bulkDays}
+                      onChange={e => setBulkDays(parseInt(e.target.value))}
+                      className="text-sm border border-gray-300 rounded-lg px-2 py-2 bg-white"
+                      data-testid="bulk-days-select"
+                    >
+                      <option value={7}>7 days</option>
+                      <option value={30}>30 days</option>
+                      <option value={90}>90 days</option>
+                      <option value={365}>1 year</option>
+                    </select>
+                    <Button
+                      onClick={bulkApprovePayments}
+                      disabled={bulkProcessing}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm"
+                      data-testid="bulk-approve-btn"
+                    >
+                      {bulkProcessing ? 'Processing...' : `Approve ${selectedPayments.size} (${bulkDays}d)`}
+                    </Button>
+                  </div>
+                  
+                  {/* Bulk Reject */}
+                  <div className="flex items-center gap-2 flex-1">
+                    <select
+                      value={bulkRejectReason}
+                      onChange={e => setBulkRejectReason(e.target.value)}
+                      className="text-sm border border-gray-300 rounded-lg px-2 py-2 bg-white flex-1"
+                      data-testid="bulk-reject-reason"
+                    >
+                      <option value="">Select reason...</option>
+                      <option value="UTR not matching">UTR not matching</option>
+                      <option value="Screenshot unclear">Screenshot unclear</option>
+                      <option value="Amount mismatch">Amount mismatch</option>
+                      <option value="Duplicate payment">Duplicate payment</option>
+                      <option value="Fake screenshot">Fake screenshot</option>
+                      <option value="Payment not received">Payment not received</option>
+                    </select>
+                    <Button
+                      onClick={bulkRejectPayments}
+                      disabled={bulkProcessing || !bulkRejectReason}
+                      variant="outline"
+                      className="text-red-500 border-red-200 text-sm"
+                      data-testid="bulk-reject-btn"
+                    >
+                      Reject {selectedPayments.size}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Payment Requests */}
+          {paymentRequests.length === 0 ? (
+            <p className="text-center text-gray-400 py-8">No {paymentFilter} payment requests</p>
+          ) : (
+            <div className="space-y-3">
+              {paymentRequests.map((req, i) => (
+                <div key={i} className={`bg-white rounded-xl p-4 shadow-sm border space-y-3 ${selectedPayments.has(req.id) ? 'ring-2 ring-blue-400 border-blue-300' : ''}`}>
+                  <div className="flex items-center gap-3">
+                    {/* Checkbox for pending */}
+                    {req.status === 'pending' && (
+                      <input
+                        type="checkbox"
+                        checked={selectedPayments.has(req.id)}
+                        onChange={() => togglePaymentSelection(req.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                        data-testid={`payment-checkbox-${i}`}
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-900">{req.user_name || 'Unknown'}</p>
+                      <p className="text-xs text-gray-500">{req.user_email} | ₹{req.amount} | {req.payment_method}</p>
+                      {req.utr_number && <p className="text-xs text-blue-600 font-mono font-bold">UTR: {req.utr_number}</p>}
+                      <p className="text-xs text-gray-400">{new Date(req.created_at).toLocaleString('en-IN')}</p>
+                    </div>
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full flex-shrink-0 ${
+                      req.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                      req.status === 'approved' ? 'bg-green-100 text-green-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>{req.status}</span>
+                  </div>
+                  
+                  {/* Screenshot */}
+                  {req.screenshot_url && (
+                    <img src={req.screenshot_url} alt="Payment" className="w-full max-h-60 object-contain rounded-lg bg-gray-50 border cursor-pointer" onClick={() => window.open(req.screenshot_url, '_blank')} />
+                  )}
+
+                  {/* Individual Actions */}
+                  {req.status === 'pending' && (
+                    <div className="flex gap-2">
+                      <Button onClick={() => approvePayment(req.id)} className="flex-1 bg-green-500 hover:bg-green-600" data-testid={`approve-payment-${i}`}>
+                        Approve (30d)
+                      </Button>
+                      <Button onClick={() => rejectPayment(req.id)} variant="outline" className="text-red-500 border-red-200" data-testid={`reject-payment-${i}`}>
+                        Reject
+                      </Button>
+                    </div>
+                  )}
+                  {req.status === 'approved' && req.premium_days && (
+                    <p className="text-xs text-green-600">Approved for {req.premium_days} days by admin</p>
+                  )}
+                  {req.status === 'rejected' && req.reject_reason && (
+                    <p className="text-xs text-red-500">Reason: {req.reject_reason}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+
+      {activeTab === 'growth' && (
+        <div className="space-y-6">
+          <SignupFunnelDashboard />
+          <GirlsReferralDashboard />
+          <GrowthAcquisition />
+        </div>
+      )}
+
+
+      {activeTab === 'safety' && (
+        <SafetyDashboard />
+      )}
+
+      {/* Premium Analytics Tab */}
+      {activeTab === 'premium' && (
+        <PremiumAnalyticsPanel />
+      )}
+
+      {/* Settings Tab - Feature Toggles */}
+      {activeTab === 'settings' && (
+        <div className="space-y-6" data-testid="admin-settings-panel">
+          <h2 className="text-xl font-bold text-gray-900">Feature Settings</h2>
+          
+          <div className="bg-white rounded-xl border p-5 space-y-5">
+            <h3 className="font-semibold text-gray-800 text-lg">Feature Toggles</h3>
+            <p className="text-sm text-gray-500">Enable or disable features for all users.</p>
+            
+            {/* Referral System Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl" data-testid="referral-toggle-row">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <Users className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">Referral System</h4>
+                  <p className="text-sm text-gray-500">Invite 3 friends = 10 Superlikes reward</p>
+                </div>
+              </div>
+              <button
+                onClick={() => toggleFeatureFlag('referral_system', !featureFlags.referral_system)}
+                disabled={flagsLoading}
+                data-testid="referral-toggle-btn"
+                className={`relative w-14 h-7 rounded-full transition-colors duration-200 ${
+                  featureFlags.referral_system ? 'bg-green-500' : 'bg-gray-300'
+                } ${flagsLoading ? 'opacity-50' : ''}`}
+              >
+                <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                  featureFlags.referral_system ? 'translate-x-7' : 'translate-x-0.5'
+                }`} />
+              </button>
+            </div>
+
+            {/* Daily Rewards Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl" data-testid="daily-rewards-toggle-row">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
+                  <Crown className="w-5 h-5 text-pink-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">Daily Login Rewards</h4>
+                  <p className="text-sm text-gray-500">7-day streak with Superlikes & Boost rewards</p>
+                </div>
+              </div>
+              <button
+                onClick={() => toggleFeatureFlag('daily_rewards', !featureFlags.daily_rewards)}
+                disabled={flagsLoading}
+                data-testid="daily-rewards-toggle-btn"
+                className={`relative w-14 h-7 rounded-full transition-colors duration-200 ${
+                  featureFlags.daily_rewards ? 'bg-green-500' : 'bg-gray-300'
+                } ${flagsLoading ? 'opacity-50' : ''}`}
+              >
+                <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                  featureFlags.daily_rewards ? 'translate-x-7' : 'translate-x-0.5'
+                }`} />
+              </button>
+            </div>
+
+            {/* AI Chatbot Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl" data-testid="ai-chatbot-toggle-row">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">AI Girl Chatbot</h4>
+                  <p className="text-sm text-gray-500">Auto-match AI girls with new users & reply in Hinglish</p>
+                </div>
+              </div>
+              <button
+                onClick={() => toggleFeatureFlag('ai_chatbot', !featureFlags.ai_chatbot)}
+                disabled={flagsLoading}
+                data-testid="ai-chatbot-toggle-btn"
+                className={`relative w-14 h-7 rounded-full transition-colors duration-200 ${
+                  featureFlags.ai_chatbot ? 'bg-green-500' : 'bg-gray-300'
+                } ${flagsLoading ? 'opacity-50' : ''}`}
+              >
+                <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                  featureFlags.ai_chatbot ? 'translate-x-7' : 'translate-x-0.5'
+                }`} />
+              </button>
+            </div>
+
+            {/* Crush Feature Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl" data-testid="crush-toggle-row">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                  <Flame className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">Secret Crush</h4>
+                  <p className="text-sm text-gray-500">Anonymous crush feature on Discover page</p>
+                </div>
+              </div>
+              <button
+                onClick={() => toggleFeatureFlag('crush_feature', !featureFlags.crush_feature)}
+                disabled={flagsLoading}
+                data-testid="crush-toggle-btn"
+                className={`relative w-14 h-7 rounded-full transition-colors duration-200 ${
+                  featureFlags.crush_feature ? 'bg-green-500' : 'bg-gray-300'
+                } ${flagsLoading ? 'opacity-50' : ''}`}
+              >
+                <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                  featureFlags.crush_feature ? 'translate-x-7' : 'translate-x-0.5'
+                }`} />
+              </button>
+            </div>
+
+            {/* Rewarded Ads Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl" data-testid="rewarded-ads-toggle-row">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                  <DollarSign className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900">Rewarded Ads (Ad-Free)</h4>
+                  <p className="text-sm text-gray-500">Watch 2 ads → 30 min ad-free reward</p>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await adminApi.get('/admin/adfree-config');
+                    const current = res.data.config?.enabled !== false;
+                    await adminApi.put('/admin/adfree-config', { enabled: !current });
+                    toast.success(`Rewarded ads ${!current ? 'enabled' : 'disabled'}`);
+                  } catch (e) { toast.error('Failed to toggle'); }
+                }}
+                data-testid="rewarded-ads-toggle-btn"
+                className="relative w-14 h-7 rounded-full transition-colors duration-200 bg-green-500"
+              >
+                <div className="absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 translate-x-7" />
+              </button>
+            </div>
+          </div>
+
+          {/* Status Legend */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
+            <strong>Note:</strong> Disabling a feature will immediately prevent users from accessing it. Existing data (streaks, referral codes) will be preserved and available when re-enabled.
+          </div>
+          
+          {/* Welcome Messages Section */}
+          <WelcomeSettings />
+          
+          {/* App Update Control */}
+          <AppUpdateSettings />
+        </div>
+      )}
+
+      {activeTab === 'revenue' && (
+        <RevenueTrendsPanel />
+      )}
+
+      {activeTab === 'versions' && (
+        <VersionAnalyticsPanel />
+      )}
+    </div>
+  );
+};
+
+export default AdminDashboard;

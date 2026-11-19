@@ -1,0 +1,101 @@
+{
+  "id": "heartlink-dating-app",
+  "short_name": "HeartLink",
+  "name": "HeartLink - Dating App",
+  "description": "India's most advanced dating platform with AI matchmaking, real-time chat, and complete privacy control",
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-discover.png",
+      "sizes": "375x667",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Discover profiles and find matches"
+    },
+    {
+      "src": "/screenshot-matches.png",
+      "sizes": "375x667",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "View your matches with AI compatibility scores"
+    },
+    {
+      "src": "/screenshot-chat.png",
+      "sizes": "375x667",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Chat with your matches in real-time"
+    }
+  ],
+  "start_url": "https://heartlink.co.in/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "theme_color": "#ff6b9d",
+  "background_color": "#ffeef8",
+  "orientation": "portrait",
+  "categories": ["social", "lifestyle"],
+  "scope": "https://heartlink.co.in/",
+  "shortcuts": [
+    {
+      "name": "Discover",
+      "short_name": "Discover",
+      "description": "Browse and discover new profiles",
+      "url": "/discover",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Matches",
+      "short_name": "Matches",
+      "description": "View your matches",
+      "url": "/matches",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "short_name": "Profile",
+      "description": "View and edit your profile",
+      "url": "/profile",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "prefer_related_applications": false
+}

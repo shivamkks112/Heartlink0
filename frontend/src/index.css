@@ -4,21 +4,65 @@
 
 body {
     margin: 0;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-        sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+        "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+        "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y pan-x;
+}
+
+/* Disable text selection on non-input elements (NOT on body — breaks WebView scroll) */
+div, span, p, h1, h2, h3, h4, h5, h6, label, li, ul, nav, header, footer, section, article, aside, main {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Allow text selection only in inputs/textareas */
+input, textarea, [contenteditable] {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+/* Instant button feedback — no 300ms delay */
+button, a, [role="button"], [onclick] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+}
+
+/* Smooth momentum scrolling for scrollable areas */
+.overflow-y-auto, .overflow-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+.overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* GPU acceleration for animated elements */
+.transition-transform, .animate-in, .animate-pulse {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Prevent pull-to-refresh — use 'contain' not 'none' (none breaks scroll in some WebViews) */
+html {
+    overscroll-behavior-y: contain;
 }
 
 code {
-    font-family:
-        source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+    font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
+        monospace;
 }
 
+
+
 @layer base {
-    :root {
+  :root {
         --background: 0 0% 100%;
         --foreground: 0 0% 3.9%;
         --card: 0 0% 100%;
@@ -45,7 +89,7 @@ code {
         --chart-5: 27 87% 67%;
         --radius: 0.5rem;
     }
-    .dark {
+  .dark {
         --background: 0 0% 3.9%;
         --foreground: 0 0% 98%;
         --card: 0 0% 3.9%;
@@ -73,43 +117,32 @@ code {
     }
 }
 
+
+
 @layer base {
-    * {
-        @apply border-border;
+  * {
+    @apply border-border;
     }
-    body {
-        @apply bg-background text-foreground;
+  body {
+    @apply bg-background text-foreground;
     }
 }
 
-@layer base {
-    [data-debug-wrapper="true"] {
-        display: contents !important;
-    }
-
-    [data-debug-wrapper="true"] > * {
-        margin-left: inherit;
-        margin-right: inherit;
-        margin-top: inherit;
-        margin-bottom: inherit;
-        padding-left: inherit;
-        padding-right: inherit;
-        padding-top: inherit;
-        padding-bottom: inherit;
-        column-gap: inherit;
-        row-gap: inherit;
-        gap: inherit;
-        border-left-width: inherit;
-        border-right-width: inherit;
-        border-top-width: inherit;
-        border-bottom-width: inherit;
-        border-left-style: inherit;
-        border-right-style: inherit;
-        border-top-style: inherit;
-        border-bottom-style: inherit;
-        border-left-color: inherit;
-        border-right-color: inherit;
-        border-top-color: inherit;
-        border-bottom-color: inherit;
-    }
+/* Safe area padding for navigation bar + banner ad */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
+
+/* Extra padding for pages with navbar to accommodate banner ads */
+.page-with-navbar {
+  padding-bottom: calc(var(--nav-total, 72px) + 88px);
+}
+
+/* Banner ad container spacing */
+.banner-ad-space {
+  height: 80px;
+  margin-bottom: 70px;
+}
+
+/* Adaptive banner space (set by AdsService from the real ad height; 0 when no ad) */
+body.hl-banner #root { padding-bottom: var(--hl-banner-h, 0px); transition: padding-bottom 0.2s ease; }
