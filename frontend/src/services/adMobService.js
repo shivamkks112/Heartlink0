@@ -1,3 +1,4 @@
+import { shouldShowAds } from '@/utils/adEligibility';
 /**
  * AdMob Service — Thin wrapper over AdsService (single source of truth)
  * 
@@ -23,10 +24,7 @@ class AdMobService {
   get isNative() { return this._ads.isNative(); }
 
   isUserEligibleForAds(user) {
-    if (!user) return false;
-    if (user.gender?.toLowerCase() !== 'male') return false;
-    if (user.is_premium || user.isPremium) return false;
-    return true;
+    return shouldShowAds(user);
   }
 
   async showInterstitial(user, screenName = 'unknown') {

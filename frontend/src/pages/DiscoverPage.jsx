@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import AdFreeReward from '@/components/AdFreeReward';
 import adsService from '@/services/AdsService';
+import { shouldShowAds as userSeesAds } from '@/utils/adEligibility';
 import OutOfSwipesModal from '@/components/ads/OutOfSwipesModal';
 import { NativeAdCard, useNativeAdFeed } from '@/components/ads/NativeAdCard';
 import wsService from '@/services/WebSocketService';
@@ -99,7 +100,7 @@ const DiscoverPage = ({ user }) => {
   const swipeAnimation = useRef(null);
 
   const DISCOVER_AD_EVERY = 9;
-  const shouldShowAds = user?.gender?.toLowerCase() === 'male' && !user?.is_premium && !user?.isPremium;
+  const shouldShowAds = userSeesAds(user);
   const [adFeedEnabled, setAdFeedEnabled] = useState(false);
   const adFeed = useNativeAdFeed('discover', user, adFeedEnabled);
   const likesLeft = likeQuota ? likeQuota.likes_remaining : null;

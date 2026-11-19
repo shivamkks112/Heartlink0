@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import adsService, { AD_CONFIG } from '@/services/AdsService';
+import { shouldShowAds } from '@/utils/adEligibility';
 
 export const NATIVE_AD_EVERY = 6;
 
@@ -7,7 +8,7 @@ export const NATIVE_AD_EVERY = 6;
 export const useNativeAdFeed = (feedId, user, enabled = true) => {
   const [feed, setFeed] = useState(null);
   const [failed, setFailed] = useState([]);
-  const adUser = Boolean(user) && user.gender?.toLowerCase() === 'male' && !user.is_premium && !user.isPremium;
+  const adUser = shouldShowAds(user);
 
   useEffect(() => {
     if (!enabled || !adUser || !adsService.isNative()) return undefined;

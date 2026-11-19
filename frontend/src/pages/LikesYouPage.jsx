@@ -8,12 +8,16 @@ import wsService from '@/services/WebSocketService';
 import { API } from '@/config/api';
 import { getPageData, setPageData } from '@/utils/pageCache';
 import adsService from '@/services/AdsService';
+import { shouldShowAds } from '@/utils/adEligibility';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { NativeAdCard, useNativeAdFeed, NATIVE_AD_EVERY } from '@/components/ads/NativeAdCard';
 
 
 const LikesYouPage = ({ user }) => {
+  // Interstitial only on leaving this screen (free users; AdsService caps 1 per 15 min)
+  useEffect(() => () => { if (shouldShowAds(user)) adsService.showInterstitial().catch(() => {}); }, []); // eslint-disable-line
+
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('all');
   const _lc = getPageData('likes', user?.id);

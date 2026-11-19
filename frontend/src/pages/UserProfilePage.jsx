@@ -1,3 +1,5 @@
+import { shouldShowAds } from '@/utils/adEligibility';
+import adsService from '@/services/AdsService';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -10,6 +12,9 @@ import { getPageData, setPageData } from '@/utils/pageCache';
 
 
 const UserProfilePage = ({ user }) => {
+  // Interstitial only on leaving this screen (free users; AdsService caps 1 per 15 min)
+  useEffect(() => () => { if (shouldShowAds(user)) adsService.showInterstitial().catch(() => {}); }, []); // eslint-disable-line
+
   const { userId } = useParams();
   const navigate = useNavigate();
   const nav = useLocation().state || {};

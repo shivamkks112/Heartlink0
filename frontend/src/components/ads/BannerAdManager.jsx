@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import adsService from '@/services/AdsService';
+import { shouldShowAds } from '@/utils/adEligibility';
 
 // Banner only on Settings, Profile edit and Matches list; never on Discover, chat, match screen, premium or auth.
 const BANNER_PATHS = ['/matches', '/settings', '/profile'];
 
 export const BannerAdManager = ({ user }) => {
   const location = useLocation();
-  const adUser = Boolean(user) && user.gender?.toLowerCase() === 'male' && !user.is_premium && !user.isPremium;
+  const adUser = shouldShowAds(user);
   const [popupOpen, setPopupOpen] = useState(false);
   const show = adUser && BANNER_PATHS.includes(location.pathname) && !popupOpen;
 
