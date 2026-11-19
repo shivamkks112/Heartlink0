@@ -4,6 +4,10 @@ import "./index.css";
 import App from "@/App";
 import axios from "axios";
 import { BACKEND_URL } from "@/config/api";
+import ErrorBoundary from "@/components/ErrorBoundary";
+
+// OTA: mark bundle healthy as early as possible (a broken bundle is rolled back by Capgo)
+try { import("@capgo/capacitor-updater").then((m) => m.CapacitorUpdater.notifyAppReady()).catch(() => {}); } catch (_) {}
 
 // Send the login token with our own API calls so the server can verify the account owner
 axios.interceptors.request.use((config) => {
@@ -17,6 +21,8 @@ axios.interceptors.request.use((config) => {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary root>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>,
 );

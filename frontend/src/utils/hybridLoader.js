@@ -60,6 +60,14 @@ export async function checkForAppUpdate() {
 
 // Register Service Worker for caching
 export function registerServiceWorker() {
+  // Native APK ships its own bundle: a SW there serves stale index/chunks after rebuilds -> blank screen
+  if (window.Capacitor?.isNativePlatform?.()) {
+    try {
+      navigator.serviceWorker?.getRegistrations?.().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+      window.caches?.keys?.().then(ks => ks.forEach(k => window.caches.delete(k))).catch(() => {});
+    } catch (_) {}
+    return;
+  }
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/service-worker.js')
       .then(registration => {

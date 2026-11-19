@@ -254,11 +254,9 @@ function App() {
       setTimeout(checkForAppUpdate, 5000);
     });
 
-    // Initialize safe area measurements
-    initSafeArea();
-
-    // Track install / first open (idempotent)
-    trackInstall();
+    // Never let a native/plugin init error block the first render
+    try { initSafeArea(); } catch (e) { console.error('[startup] safeArea', e); }
+    try { trackInstall(); } catch (e) { console.error('[startup] trackInstall', e); }
 
     // Check for stored user
     const storedUser = localStorage.getItem('user');

@@ -8,7 +8,7 @@ import axios from 'axios';
 import { BACKEND_URL, API } from '@/config/api';
 
 // VAPID key from Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
-const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY || import.meta.env.REACT_APP_FIREBASE_VAPID_KEY;
+const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY;
 
 /**
  * Request permission and get FCM token

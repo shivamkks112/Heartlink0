@@ -7,22 +7,27 @@ import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 // Firebase config from environment variables
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL || import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID || import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-
-// Initialize Firebase services
-export const auth = getAuth(app);
-export const storage = getStorage(app);
+// Never crash app startup if the build had no .env (e.g. built from GitHub without env files)
+let app = null, auth = null, storage = null;
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  storage = getStorage(app);
+} catch (error) {
+  console.error('[Firebase] init failed — check REACT_APP_FIREBASE_* at build time:', error);
+}
+export { auth, storage };
 export const googleProvider = new GoogleAuthProvider();
 
 // Phone Auth now handled by @capacitor-firebase/authentication native plugin
@@ -30,7 +35,7 @@ export const googleProvider = new GoogleAuthProvider();
 
 // Initialize Firebase Cloud Messaging
 let messaging = null;
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+if (app && typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   try {
     messaging = getMessaging(app);
   } catch (error) {
@@ -41,7 +46,7 @@ export { messaging };
 
 // Analytics (optional)
 let analytics = null;
-if (typeof window !== 'undefined') {
+if (app && typeof window !== 'undefined') {
   try {
     analytics = getAnalytics(app);
   } catch (error) {

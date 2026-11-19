@@ -19,8 +19,9 @@ function getBackendUrl() {
   if (Capacitor.isNativePlatform()) {
     return PRODUCTION_URL;
   }
-  // On web: use .env (preview, production deploy, or local dev)
-  return process.env.REACT_APP_BACKEND_URL || PRODUCTION_URL;
+  // On web: use .env (preview, production deploy, or local dev); fall back if missing/empty
+  const envUrl = (process.env.REACT_APP_BACKEND_URL || '').trim();
+  return envUrl && envUrl !== 'undefined' ? envUrl.replace(/\/+$/, '') : PRODUCTION_URL;
 }
 
 export const BACKEND_URL = getBackendUrl();

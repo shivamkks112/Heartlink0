@@ -17,6 +17,12 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('[HeartLink] Component crash:', error, info?.componentStack);
+    // Stale/missing lazy chunk: reload once to fetch the current bundle
+    const isChunkError = /ChunkLoadError|Loading chunk|Loading CSS chunk|dynamically imported module/i.test(`${error?.name} ${error?.message}`);
+    if (isChunkError && !sessionStorage.getItem('hl_chunk_reload')) {
+      sessionStorage.setItem('hl_chunk_reload', '1');
+      window.location.reload();
+    }
   }
 
   render() {
@@ -40,15 +46,17 @@ class ErrorBoundary extends Component {
           <button
             onClick={() => {
               this.setState({ hasError: false, error: null });
-              window.location.href = '/matches';
+              if (this.props.root) window.location.reload();
+              else window.location.href = '/matches';
             }}
+            data-testid="error-boundary-retry-btn"
             style={{
               background: 'linear-gradient(135deg, #D6336C 0%, #E8590C 100%)',
               color: 'white', border: 'none', borderRadius: 9999,
               padding: '12px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
             }}
           >
-            Go Back
+            {this.props.root ? 'Retry' : 'Go Back'}
           </button>
         </div>
       );
