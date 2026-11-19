@@ -41,6 +41,7 @@ const OutOfSwipesModal = ({ isOpen, onClose, onWatchAd, watching = false, adsLef
           >
             <Crown className="w-5 h-5" /> Go Premium for unlimited likes
           </button>
+          <p className="text-center text-xs text-amber-300/90" data-testid="premium-value-line">Unlimited likes + see who liked you + no ads</p>
         </div>
       </div>
     </div>

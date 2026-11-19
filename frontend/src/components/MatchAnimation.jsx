@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Heart, MessageCircle, X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
+import { isAdFreeUser } from '@/utils/adEligibility';
 
 const MatchAnimation = ({ 
   isOpen, 
@@ -12,6 +14,7 @@ const MatchAnimation = ({
 }) => {
   const [showContent, setShowContent] = useState(false);
   const [hearts, setHearts] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isOpen) {
@@ -177,6 +180,15 @@ const MatchAnimation = ({
             Keep Discovering
           </Button>
         </div>
+        {!isAdFreeUser(currentUser) && currentUser?.gender?.toLowerCase() !== 'female' && (
+          <button
+            onClick={() => { onClose?.(); navigate('/premium'); }}
+            className="mt-4 text-sm text-white/80 underline underline-offset-4 hover:text-white"
+            data-testid="match-premium-nudge-link"
+          >
+            Get noticed faster with Premium
+          </button>
+        )}
       </div>
 
       {/* CSS Animations */}

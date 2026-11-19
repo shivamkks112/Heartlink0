@@ -32,11 +32,13 @@ const PremiumPage = ({ user, onUpdate }) => {
   const [billingReady, setBillingReady] = useState(false);
   const [subStatus, setSubStatus] = useState(null);
   const [displayPrice, setDisplayPrice] = useState('₹49');
+  const [likesCount, setLikesCount] = useState(0);
 
   useEffect(() => {
     trackEvent('premium_page_view', { user_id: user?.id });
     initBilling();
     checkStatus();
+    if (user?.id) axios.get(`${API}/init/${user.id}`).then(r => setLikesCount(r.data?.likes_count || 0)).catch(() => {});
   }, []);
 
   const initBilling = async () => {
@@ -242,6 +244,29 @@ const PremiumPage = ({ user, onUpdate }) => {
         {/* ── NEW PURCHASE ── */}
         {!showAsPremium && !isExpired && (
           <div className="space-y-6">
+            <div className="rounded-2xl border border-amber-400/30 bg-white/5 p-4" data-testid="free-vs-premium">
+              <div className="text-center mb-3">
+                <span className="text-4xl font-extrabold text-white" data-testid="premium-price-big">{displayPrice}</span>
+                <span className="text-gray-400 text-sm">/month</span>
+              </div>
+              {likesCount > 0 && (
+                <p className="text-center text-sm font-semibold text-amber-300 mb-3" data-testid="premium-likes-line">
+                  {likesCount} {likesCount === 1 ? 'person has' : 'people have'} liked you. See them all with Premium
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="rounded-xl bg-black/30 p-3">
+                  <p className="font-bold text-gray-300 mb-2">Free</p>
+                  {['10 likes/day', 'Basic chat', 'Ads'].map(t => <p key={t} className="text-gray-400 py-0.5">{t}</p>)}
+                </div>
+                <div className="rounded-xl bg-amber-500/15 border border-amber-400/30 p-3">
+                  <p className="font-bold text-amber-300 mb-2 flex items-center gap-1"><Crown className="w-3.5 h-3.5" /> Premium</p>
+                  {['Unlimited likes', 'See who liked you', 'No ads', 'Super Likes', 'Boost', 'Advanced filters', 'Highlighted profile'].map(t => (
+                    <p key={t} className="text-white py-0.5 flex items-center gap-1"><Check className="w-3 h-3 text-green-400 flex-shrink-0" />{t}</p>
+                  ))}
+                </div>
+              </div>
+            </div>
             <div className="text-center">
               <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center mb-3 shadow-lg shadow-amber-500/20">
                 <Crown className="w-8 h-8 text-white" />
