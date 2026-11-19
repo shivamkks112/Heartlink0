@@ -100,7 +100,8 @@ const DiscoverPage = ({ user }) => {
 
   const DISCOVER_AD_EVERY = 9;
   const shouldShowAds = user?.gender?.toLowerCase() === 'male' && !user?.is_premium && !user?.isPremium;
-  const adFeed = useNativeAdFeed('discover', user);
+  const [adFeedEnabled, setAdFeedEnabled] = useState(false);
+  const adFeed = useNativeAdFeed('discover', user, adFeedEnabled);
   const likesLeft = likeQuota ? likeQuota.likes_remaining : null;
   const likeLocked = !isPremiumUser && likesLeft === 0;
   const minSwipeDistance = 50;
@@ -300,6 +301,7 @@ const DiscoverPage = ({ user }) => {
 
     // Native ad card every N profiles (free users, skippable with a swipe)
     swipesSinceAd.current += 1;
+    if (!adFeedEnabled && swipesSinceAd.current >= DISCOVER_AD_EVERY - 3) setAdFeedEnabled(true); // preload, never on app open
     if (adFeed.feed && swipesSinceAd.current >= DISCOVER_AD_EVERY) {
       swipesSinceAd.current = 0;
       setShowAdCard(true);
@@ -598,14 +600,15 @@ const DiscoverPage = ({ user }) => {
       <div className="relative flex-1 min-h-0 p-1.5 pb-0">
         {showAdCard && adFeed.feed && (
           <div
-            className="absolute inset-1.5 z-[40] max-w-md mx-auto rounded-xl bg-[#111] flex flex-col items-center justify-center gap-3 p-4"
+            className="absolute inset-1.5 z-[40] max-w-md mx-auto rounded-xl bg-[#111] flex flex-col items-center gap-3 p-3 overflow-hidden"
+            style={{ paddingLeft: 'max(12px, env(safe-area-inset-left))', paddingRight: 'max(12px, env(safe-area-inset-right))' }}
             data-testid="discover-native-ad"
             onTouchStart={(e) => { adTouchX.current = e.touches[0].clientX; }}
             onTouchEnd={(e) => { if (adTouchX.current !== null && Math.abs(e.changedTouches[0].clientX - adTouchX.current) > minSwipeDistance) setShowAdCard(false); adTouchX.current = null; }}
           >
             <span className="self-start text-[11px] font-semibold uppercase tracking-wider text-white/60 bg-white/10 px-2 py-0.5 rounded" data-testid="sponsored-label">Sponsored</span>
-            <div className="w-full grid grid-cols-2"><NativeAdCard feed={adFeed.feed} slotKey="discover-slot" failed={adFeed.failed} /></div>
-            <button onClick={() => setShowAdCard(false)} className="text-white/70 text-sm px-4 py-2 rounded-full border border-white/15" data-testid="skip-native-ad-btn">Swipe or tap to skip</button>
+            <div className="w-full flex-1 min-h-0 flex items-center"><NativeAdCard feed={adFeed.feed} slotKey="discover-slot" failed={adFeed.failed} fill /></div>
+            <button onClick={() => setShowAdCard(false)} className="shrink-0 text-white/70 text-sm px-4 py-2 rounded-full border border-white/15" data-testid="skip-native-ad-btn">Swipe or tap to skip</button>
           </div>
         )}
         <div
